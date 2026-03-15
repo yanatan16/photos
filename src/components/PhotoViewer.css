@@ -1,0 +1,140 @@
+.photo-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewer-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  z-index: 1001;
+}
+
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.viewer-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.viewer-image-container {
+  max-width: 90%;
+  max-height: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.viewer-image {
+  max-width: 100%;
+  max-height: calc(90vh - 80px);
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.viewer-info {
+  margin-top: 1rem;
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  color: #e0e0e0;
+}
+
+.viewer-filename {
+  font-size: 0.875rem;
+}
+
+.viewer-counter {
+  font-size: 0.875rem;
+  color: #888;
+}
+
+.viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.viewer-nav:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.viewer-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.viewer-nav-left {
+  left: 2rem;
+}
+
+.viewer-nav-right {
+  right: 2rem;
+}
+
+@media (max-width: 768px) {
+  .viewer-content {
+    padding: 1rem;
+  }
+
+  .viewer-nav {
+    width: 48px;
+    height: 48px;
+    font-size: 2rem;
+  }
+
+  .viewer-nav-left {
+    left: 0.5rem;
+  }
+
+  .viewer-nav-right {
+    right: 0.5rem;
+  }
+
+  .viewer-close {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+
+  .viewer-image-container {
+    max-width: 100%;
+  }
+
+  .viewer-info {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+}
