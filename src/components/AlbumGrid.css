@@ -128,6 +128,39 @@
   color: #fff;
 }
 
+.breadcrumb-count {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.photo-card {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #1a1a1a;
+  border-radius: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  padding: 0;
+  cursor: pointer;
+}
+
+.photo-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.photo-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .album-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

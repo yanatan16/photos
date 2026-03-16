@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import PhotoViewer from './PhotoViewer';
 import './AlbumGrid.css';
 
 const NAV_FILTERS = ['All', 'Camera', 'Lens'];
@@ -23,9 +24,15 @@ const getValueCounts = (albums, filter) => {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 };
 
-const filterAlbums = (albums, filter, value) => {
-  if (!value) return albums;
-  return albums.filter(album => (album[albumField(filter)] || []).includes(value));
+const getFilteredPhotos = (albums, filter, value) => {
+  const field = filter.toLowerCase();
+  return albums
+    .flatMap(album => album.photos.filter(p => p[field] === value))
+    .sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(a.date) - new Date(b.date);
+    });
 };
 
 const AlbumCard = ({ album }) => (
@@ -70,6 +77,40 @@ const ValuePicker = ({ filter, albums, onSelect }) => {
   );
 };
 
+const FilteredPhotoGrid = ({ filter, value, albums, onBack }) => {
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const photos = getFilteredPhotos(albums, filter, value);
+
+  return (
+    <>
+      <div className="filter-breadcrumb">
+        <button className="breadcrumb-back" onClick={onBack}>← {filter}</button>
+        <span className="breadcrumb-value">{value}</span>
+        <span className="breadcrumb-count">{photos.length} photos</span>
+      </div>
+      <div className="photo-grid">
+        {photos.map((photo, index) => (
+          <button
+            key={`${photo.url}-${index}`}
+            className="photo-card"
+            onClick={() => setSelectedIndex(index)}
+          >
+            <img src={photo.thumbnail} alt={photo.filename} loading="lazy" />
+          </button>
+        ))}
+      </div>
+      {selectedIndex !== null && (
+        <PhotoViewer
+          photos={photos}
+          currentIndex={selectedIndex}
+          onClose={() => setSelectedIndex(null)}
+          onNavigate={setSelectedIndex}
+        />
+      )}
+    </>
+  );
+};
+
 const AlbumGrid = ({ albums }) => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [activeValue, setActiveValue] = useState(null);
@@ -78,8 +119,6 @@ const AlbumGrid = ({ albums }) => {
     setActiveFilter(filter);
     setActiveValue(null);
   };
-
-  const visibleAlbums = filterAlbums(albums, activeFilter, activeValue);
 
   return (
     <div className="album-grid-container">
@@ -100,24 +139,25 @@ const AlbumGrid = ({ albums }) => {
         ))}
       </nav>
 
-      {activeFilter !== 'All' && !activeValue ? (
+      {activeFilter === 'All' && (
+        <div className="album-grid">
+          {albums.map(album => (
+            <AlbumCard key={album.id} album={album} />
+          ))}
+        </div>
+      )}
+
+      {activeFilter !== 'All' && !activeValue && (
         <ValuePicker filter={activeFilter} albums={albums} onSelect={setActiveValue} />
-      ) : (
-        <>
-          {activeValue && (
-            <div className="filter-breadcrumb">
-              <button className="breadcrumb-back" onClick={() => setActiveValue(null)}>
-                ← {activeFilter}
-              </button>
-              <span className="breadcrumb-value">{activeValue}</span>
-            </div>
-          )}
-          <div className="album-grid">
-            {visibleAlbums.map(album => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
-        </>
+      )}
+
+      {activeFilter !== 'All' && activeValue && (
+        <FilteredPhotoGrid
+          filter={activeFilter}
+          value={activeValue}
+          albums={albums}
+          onBack={() => setActiveValue(null)}
+        />
       )}
     </div>
   );
