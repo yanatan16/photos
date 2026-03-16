@@ -67,6 +67,12 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
               {currentIndex + 1} / {photos.length}
             </span>
           </div>
+          {(currentPhoto.camera || currentPhoto.lens) && (
+            <div className="viewer-exif">
+              {currentPhoto.camera && <span className="exif-item">{currentPhoto.camera}</span>}
+              {currentPhoto.lens && <span className="exif-item">{currentPhoto.lens}</span>}
+            </div>
+          )}
         </div>
 
         <button

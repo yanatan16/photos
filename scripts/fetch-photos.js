@@ -1,4 +1,4 @@
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -50,8 +50,14 @@ const listAllObjects = async (client, bucketName) => {
   return objects;
 };
 
+const extractYearFromSlug = (slug) => {
+  const match = slug.match(/^(\d{4})-/);
+  return match ? match[1] : null;
+};
+
 const formatAlbumName = (folderName) => {
   return folderName
+    .replace(/^\d{4}-/, '')
     .split('-')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
@@ -67,7 +73,17 @@ const thumbnailKey = (key) => {
   return [...parts, '.thumbnails', filename].join('/');
 };
 
-const parseObjects = (objects, publicUrl) => {
+const loadExifCache = async (client, bucketName) => {
+  try {
+    const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: 'exif-cache.json' }));
+    const body = await response.Body.transformToString();
+    return JSON.parse(body);
+  } catch {
+    return {};
+  }
+};
+
+const parseObjects = (objects, publicUrl, exifCache) => {
   const existingThumbnails = new Set(
     objects.map(o => o.Key).filter(key => key.includes('/.thumbnails/'))
   );
@@ -92,6 +108,7 @@ const parseObjects = (objects, publicUrl) => {
       albumMap.set(albumSlug, {
         id: albumSlug,
         name: formatAlbumName(albumSlug),
+        year: extractYearFromSlug(albumSlug),
         photos: [],
       });
     }
@@ -101,18 +118,31 @@ const parseObjects = (objects, publicUrl) => {
       ? buildPhotoUrl(publicUrl, thumbKey)
       : buildPhotoUrl(publicUrl, key);
 
+    const exif = exifCache[key] || {};
     const album = albumMap.get(albumSlug);
     album.photos.push({
       url: buildPhotoUrl(publicUrl, key),
       thumbnail,
       filename,
+      date: obj.LastModified ? obj.LastModified.toISOString() : null,
+      camera: exif.camera || null,
+      lens: exif.lens || null,
     });
   });
 
-  return Array.from(albumMap.values()).map(album => ({
-    ...album,
-    cover: album.photos.length > 0 ? album.photos[0].thumbnail : null,
-  }));
+  return Array.from(albumMap.values())
+    .map(album => ({
+      ...album,
+      cover: album.photos.length > 0 ? album.photos[0].thumbnail : null,
+      firstPhotoDate: album.photos.length > 0 ? album.photos[0].date : null,
+      cameras: [...new Set(album.photos.map(p => p.camera).filter(Boolean))],
+      lenses: [...new Set(album.photos.map(p => p.lens).filter(Boolean))],
+    }))
+    .sort((a, b) => {
+      const da = a.firstPhotoDate ? new Date(a.firstPhotoDate) : new Date(0);
+      const db = b.firstPhotoDate ? new Date(b.firstPhotoDate) : new Date(0);
+      return db - da;
+    });
 };
 
 const generateMetadata = async () => {
@@ -130,8 +160,12 @@ const generateMetadata = async () => {
   const objects = await listAllObjects(client, bucketName);
   console.log(`Found ${objects.length} objects`);
 
+  console.log('Loading EXIF cache...');
+  const exifCache = await loadExifCache(client, bucketName);
+  console.log(`EXIF cache has ${Object.keys(exifCache).length} entries`);
+
   console.log('Parsing album structure...');
-  const albums = parseObjects(objects, publicUrl);
+  const albums = parseObjects(objects, publicUrl, exifCache);
   console.log(`Generated ${albums.length} albums`);
 
   const metadata = { albums };
