@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import PhotoViewer from './PhotoViewer';
+import PhotoGrid from './PhotoGrid';
 import './AlbumGrid.css';
 
 const formatDate = (isoDate) => {
@@ -92,7 +92,15 @@ const CoverGrid = ({ items, emptyMessage, onSelect }) => {
 const CameraView = ({ albums }) => {
   const [activeCamera, setActiveCamera] = useState(null);
   const [activeLens, setActiveLens] = useState(null);
-  const [selectedIndex, setSelectedIndex] = useState(null);
+
+  const lenses = useMemo(
+    () => activeCamera ? getLensListForCamera(albums, activeCamera) : [],
+    [albums, activeCamera]
+  );
+  const photos = useMemo(
+    () => activeCamera ? getFilteredPhotos(albums, activeCamera, activeLens) : [],
+    [albums, activeCamera, activeLens]
+  );
 
   if (!activeCamera) {
     return (
@@ -103,9 +111,6 @@ const CameraView = ({ albums }) => {
       />
     );
   }
-
-  const lenses = getLensListForCamera(albums, activeCamera);
-  const photos = getFilteredPhotos(albums, activeCamera, activeLens);
 
   return (
     <>
@@ -130,26 +135,7 @@ const CameraView = ({ albums }) => {
         </div>
       )}
 
-      <div className="photo-grid">
-        {photos.map((photo, index) => (
-          <button
-            key={`${photo.url}-${index}`}
-            className="photo-card"
-            onClick={() => setSelectedIndex(index)}
-          >
-            <img src={photo.thumbnail} alt={photo.filename} loading="lazy" />
-          </button>
-        ))}
-      </div>
-
-      {selectedIndex !== null && (
-        <PhotoViewer
-          photos={photos}
-          currentIndex={selectedIndex}
-          onClose={() => setSelectedIndex(null)}
-          onNavigate={setSelectedIndex}
-        />
-      )}
+      <PhotoGrid photos={photos} />
     </>
   );
 };

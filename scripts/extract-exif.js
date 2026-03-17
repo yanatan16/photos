@@ -127,7 +127,7 @@ const extractExif = async () => {
   console.log('Loading existing EXIF cache...');
   const cache = force ? {} : await loadExifCache(client, bucketName);
   const cached = Object.keys(cache).length;
-  if (force) console.log('--force: reprocessing all photos');
+  if (force) console.log(`--force: reprocessing all ${photoKeys.length} photos`);
   else console.log(`Cache has ${cached} entries, ${photoKeys.length - cached} to process`);
 
   let processed = 0;

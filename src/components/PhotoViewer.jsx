@@ -1,6 +1,29 @@
 import { useEffect } from 'react';
 import './PhotoViewer.css';
 
+const EXIF_FIELDS = [
+  { key: 'camera', primary: true },
+  { key: 'lens' },
+  { key: 'focalLength' },
+  { key: 'aperture' },
+  { key: 'shutter' },
+  { key: 'iso' },
+];
+
+const ExifStrip = ({ photo }) => {
+  const fields = EXIF_FIELDS.filter(f => photo[f.key]);
+  if (fields.length === 0) return null;
+  return (
+    <div className="viewer-exif">
+      {fields.map(({ key, primary }) => (
+        <span key={key} className={`exif-item${primary ? '' : ' exif-secondary'}`}>
+          {photo[key]}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   const currentPhoto = photos[currentIndex];
   const isFirst = currentIndex === 0;
@@ -67,16 +90,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
               {currentIndex + 1} / {photos.length}
             </span>
           </div>
-          {(currentPhoto.camera || currentPhoto.lens || currentPhoto.aperture || currentPhoto.iso) && (
-            <div className="viewer-exif">
-              {currentPhoto.camera && <span className="exif-item">{currentPhoto.camera}</span>}
-              {currentPhoto.lens && <span className="exif-item exif-secondary">{currentPhoto.lens}</span>}
-              {currentPhoto.focalLength && <span className="exif-item exif-secondary">{currentPhoto.focalLength}</span>}
-              {currentPhoto.aperture && <span className="exif-item exif-secondary">{currentPhoto.aperture}</span>}
-              {currentPhoto.shutter && <span className="exif-item exif-secondary">{currentPhoto.shutter}</span>}
-              {currentPhoto.iso && <span className="exif-item exif-secondary">{currentPhoto.iso}</span>}
-            </div>
-          )}
+          <ExifStrip photo={currentPhoto} />
         </div>
 
         <button
