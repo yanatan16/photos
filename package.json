@@ -8,7 +8,7 @@
     "build:photos": "node scripts/fetch-photos.js",
     "extract-exif": "node scripts/extract-exif.js",
     "thumbnails": "node scripts/generate-thumbnails.js",
-    "upload": "node scripts/upload-photos.js",
+    "upload": "node scripts/upload-photos.js && npm run extract-exif",
     "build:site": "vite build",
     "build": "npm run build:photos && npm run build:site",
     "preview": "vite preview",
