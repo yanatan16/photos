@@ -67,10 +67,14 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
               {currentIndex + 1} / {photos.length}
             </span>
           </div>
-          {(currentPhoto.camera || currentPhoto.lens) && (
+          {(currentPhoto.camera || currentPhoto.lens || currentPhoto.aperture || currentPhoto.iso) && (
             <div className="viewer-exif">
               {currentPhoto.camera && <span className="exif-item">{currentPhoto.camera}</span>}
-              {currentPhoto.lens && <span className="exif-item">{currentPhoto.lens}</span>}
+              {currentPhoto.lens && <span className="exif-item exif-secondary">{currentPhoto.lens}</span>}
+              {currentPhoto.focalLength && <span className="exif-item exif-secondary">{currentPhoto.focalLength}</span>}
+              {currentPhoto.aperture && <span className="exif-item exif-secondary">{currentPhoto.aperture}</span>}
+              {currentPhoto.shutter && <span className="exif-item exif-secondary">{currentPhoto.shutter}</span>}
+              {currentPhoto.iso && <span className="exif-item exif-secondary">{currentPhoto.iso}</span>}
             </div>
           )}
         </div>

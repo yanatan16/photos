@@ -169,6 +169,7 @@
 
 .album-card {
   display: block;
+  text-align: left;
   background: #1a1a1a;
   border-radius: 12px;
   overflow: hidden;

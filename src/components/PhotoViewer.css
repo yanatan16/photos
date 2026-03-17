@@ -80,6 +80,10 @@
 
 .exif-item {
   font-size: 0.8rem;
+  color: #aaa;
+}
+
+.exif-secondary {
   color: #666;
 }
 

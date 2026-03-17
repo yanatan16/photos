@@ -124,9 +124,13 @@ const parseObjects = (objects, publicUrl, exifCache) => {
       url: buildPhotoUrl(publicUrl, key),
       thumbnail,
       filename,
-      date: obj.LastModified ? obj.LastModified.toISOString() : null,
+      date: exif.dateTaken || (obj.LastModified ? obj.LastModified.toISOString() : null),
       camera: exif.camera || null,
       lens: exif.lens || null,
+      aperture: exif.aperture || null,
+      shutter: exif.shutter || null,
+      iso: exif.iso || null,
+      focalLength: exif.focalLength || null,
     });
   });
 

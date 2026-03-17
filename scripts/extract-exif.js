@@ -75,14 +75,22 @@ const fetchPhotoChunk = async (url) => {
 const parseExif = async (buffer) => {
   try {
     const data = await exifr.parse(buffer, {
-      pick: ['Make', 'Model', 'LensModel'],
+      pick: ['Make', 'Model', 'LensModel', 'Lens', 'LensID',
+             'FNumber', 'ExposureTime', 'ISO', 'FocalLength', 'DateTimeOriginal'],
     });
     if (!data) return {};
 
     const camera = [data.Make, data.Model].filter(Boolean).join(' ').trim() || null;
-    const lens = data.LensModel || null;
+    const lens = data.LensModel || data.Lens || data.LensID || null;
+    const aperture = data.FNumber ? `f/${data.FNumber}` : null;
+    const shutter = data.ExposureTime
+      ? (data.ExposureTime < 1 ? `1/${Math.round(1 / data.ExposureTime)}s` : `${data.ExposureTime}s`)
+      : null;
+    const iso = data.ISO ? `ISO ${data.ISO}` : null;
+    const focalLength = data.FocalLength ? `${Math.round(data.FocalLength)}mm` : null;
+    const dateTaken = data.DateTimeOriginal ? new Date(data.DateTimeOriginal).toISOString() : null;
 
-    return { camera, lens };
+    return { camera, lens, aperture, shutter, iso, focalLength, dateTaken };
   } catch {
     return {};
   }
@@ -94,13 +102,14 @@ const processPhoto = async (key, publicUrl, cache) => {
   }
 
   const buffer = await fetchPhotoChunk(`${publicUrl}/${key}`);
-  const { camera, lens } = await parseExif(buffer);
+  const exif = await parseExif(buffer);
 
-  cache[key] = { camera, lens };
+  cache[key] = exif;
   return true;
 };
 
 const extractExif = async () => {
+  const force = process.argv.includes('--force');
   const bucketName = process.env.R2_BUCKET_NAME;
   const publicUrl = process.env.R2_PUBLIC_URL;
 
@@ -116,9 +125,10 @@ const extractExif = async () => {
   console.log(`Found ${photoKeys.length} photos`);
 
   console.log('Loading existing EXIF cache...');
-  const cache = await loadExifCache(client, bucketName);
+  const cache = force ? {} : await loadExifCache(client, bucketName);
   const cached = Object.keys(cache).length;
-  console.log(`Cache has ${cached} entries, ${photoKeys.length - cached} to process`);
+  if (force) console.log('--force: reprocessing all photos');
+  else console.log(`Cache has ${cached} entries, ${photoKeys.length - cached} to process`);
 
   let processed = 0;
   let skipped = 0;
