@@ -89,17 +89,47 @@ const CoverGrid = ({ items, emptyMessage, onSelect }) => {
   );
 };
 
-const FilteredPhotoGrid = ({ camera, lens, albums, onBack }) => {
+const CameraView = ({ albums }) => {
+  const [activeCamera, setActiveCamera] = useState(null);
+  const [activeLens, setActiveLens] = useState(null);
   const [selectedIndex, setSelectedIndex] = useState(null);
-  const photos = getFilteredPhotos(albums, camera, lens);
+
+  if (!activeCamera) {
+    return (
+      <CoverGrid
+        items={getCameraList(albums)}
+        emptyMessage="No camera data yet."
+        onSelect={(camera) => { setActiveCamera(camera); setActiveLens(null); }}
+      />
+    );
+  }
+
+  const lenses = getLensListForCamera(albums, activeCamera);
+  const photos = getFilteredPhotos(albums, activeCamera, activeLens);
 
   return (
     <>
       <div className="filter-breadcrumb">
-        <button className="breadcrumb-back" onClick={onBack}>← {lens ? camera : 'Camera'}</button>
-        <span className="breadcrumb-value">{lens ?? camera}</span>
+        <button className="breadcrumb-back" onClick={() => setActiveCamera(null)}>← Camera</button>
+        <span className="breadcrumb-value">{activeCamera}</span>
         <span className="breadcrumb-count">{photos.length} photos</span>
       </div>
+
+      {lenses.length > 0 && (
+        <div className="lens-tokens">
+          {lenses.map(({ value, count }) => (
+            <button
+              key={value}
+              className={`lens-token${activeLens === value ? ' active' : ''}`}
+              onClick={() => setActiveLens(activeLens === value ? null : value)}
+            >
+              {value}
+              <span className="lens-token-count">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="photo-grid">
         {photos.map((photo, index) => (
           <button
@@ -111,6 +141,7 @@ const FilteredPhotoGrid = ({ camera, lens, albums, onBack }) => {
           </button>
         ))}
       </div>
+
       {selectedIndex !== null && (
         <PhotoViewer
           photos={photos}
@@ -120,50 +151,6 @@ const FilteredPhotoGrid = ({ camera, lens, albums, onBack }) => {
         />
       )}
     </>
-  );
-};
-
-const CameraView = ({ albums, onBack }) => {
-  const [activeCamera, setActiveCamera] = useState(null);
-  const [activeLens, setActiveLens] = useState(null);
-
-  if (activeCamera && activeLens !== undefined) {
-    // activeLens === null means "all lenses for this camera"
-    return (
-      <FilteredPhotoGrid
-        camera={activeCamera}
-        lens={activeLens}
-        albums={albums}
-        onBack={() => setActiveLens(undefined)}
-      />
-    );
-  }
-
-  if (activeCamera) {
-    const lenses = getLensListForCamera(albums, activeCamera);
-    const totalPhotos = getFilteredPhotos(albums, activeCamera, null).length;
-    const allLensesItem = { value: 'All lenses', count: totalPhotos, cover: lenses[0]?.cover };
-    return (
-      <>
-        <div className="filter-breadcrumb">
-          <button className="breadcrumb-back" onClick={() => setActiveCamera(null)}>← Camera</button>
-          <span className="breadcrumb-value">{activeCamera}</span>
-        </div>
-        <CoverGrid
-          items={[allLensesItem, ...lenses]}
-          emptyMessage="No lens data for this camera."
-          onSelect={(v) => setActiveLens(v === 'All lenses' ? null : v)}
-        />
-      </>
-    );
-  }
-
-  return (
-    <CoverGrid
-      items={getCameraList(albums)}
-      emptyMessage="No camera data yet."
-      onSelect={setActiveCamera}
-    />
   );
 };
 
