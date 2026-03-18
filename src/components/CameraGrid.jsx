@@ -1,9 +1,8 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { getCameraList } from '../utils/photoFilters';
 import './AlbumGrid.css';
 
 const CameraGrid = ({ albums }) => {
-  const navigate = useNavigate();
   const cameras = getCameraList(albums);
 
   if (cameras.length === 0) {
@@ -18,10 +17,10 @@ const CameraGrid = ({ albums }) => {
   return (
     <div className="album-grid">
       {cameras.map(({ value, count, cover }) => (
-        <button
+        <Link
           key={value}
+          to={`/camera/${encodeURIComponent(value)}`}
           className="album-card cover-card"
-          onClick={() => navigate(`/camera/${encodeURIComponent(value)}`)}
         >
           <div className="album-cover">
             {cover && <img src={cover} alt={value} loading="lazy" />}
@@ -30,7 +29,7 @@ const CameraGrid = ({ albums }) => {
             <h2 className="album-title">{value}</h2>
             <p className="album-count">{count} photo{count !== 1 ? 's' : ''}</p>
           </div>
-        </button>
+        </Link>
       ))}
     </div>
   );

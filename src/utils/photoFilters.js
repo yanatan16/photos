@@ -11,24 +11,23 @@ export const buildItemList = (photos, keyFn) => {
     .sort((a, b) => b.count - a.count);
 };
 
+const getPhotosByCamera = (albums, camera) =>
+  albums.flatMap(a => a.photos).filter(p => p.camera === camera);
+
+const sortByDate = (photos) =>
+  [...photos].sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+  });
+
 export const getCameraList = (albums) =>
   buildItemList(albums.flatMap(a => a.photos), p => p.camera);
 
 export const getLensListForCamera = (albums, camera) =>
-  buildItemList(
-    albums.flatMap(a => a.photos).filter(p => p.camera === camera),
-    p => p.lens
-  );
+  buildItemList(getPhotosByCamera(albums, camera), p => p.lens);
 
 export const getFilteredPhotos = (albums, camera, lens) =>
-  albums
-    .flatMap(album =>
-      album.photos.filter(p =>
-        p.camera === camera && (lens === null || p.lens === lens)
-      )
-    )
-    .sort((a, b) => {
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      return new Date(a.date) - new Date(b.date);
-    });
+  sortByDate(
+    getPhotosByCamera(albums, camera).filter(p => lens === null || p.lens === lens)
+  );
