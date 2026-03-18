@@ -73,17 +73,16 @@ const thumbnailKey = (key) => {
   return [...parts, '.thumbnails', filename].join('/');
 };
 
-const loadExifCache = async (client, bucketName) => {
+const loadJson = async (client, bucketName, key) => {
   try {
-    const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: 'exif-cache.json' }));
-    const body = await response.Body.transformToString();
-    return JSON.parse(body);
+    const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
+    return JSON.parse(await response.Body.transformToString());
   } catch {
     return {};
   }
 };
 
-const parseObjects = (objects, publicUrl, exifCache) => {
+const parseObjects = (objects, publicUrl, exifCache, albumCovers) => {
   const existingThumbnails = new Set(
     objects.map(o => o.Key).filter(key => key.includes('/.thumbnails/'))
   );
@@ -135,13 +134,19 @@ const parseObjects = (objects, publicUrl, exifCache) => {
   });
 
   return Array.from(albumMap.values())
-    .map(album => ({
-      ...album,
-      cover: album.photos.length > 0 ? album.photos[0].thumbnail : null,
-      firstPhotoDate: album.photos.length > 0 ? album.photos[0].date : null,
-      cameras: [...new Set(album.photos.map(p => p.camera).filter(Boolean))],
-      lenses: [...new Set(album.photos.map(p => p.lens).filter(Boolean))],
-    }))
+    .map(album => {
+      const coverFilename = albumCovers[album.id];
+      const coverPhoto = coverFilename
+        ? album.photos.find(p => p.filename === coverFilename) ?? album.photos[0]
+        : album.photos[0];
+      return {
+        ...album,
+        cover: coverPhoto?.thumbnail ?? null,
+        firstPhotoDate: album.photos.length > 0 ? album.photos[0].date : null,
+        cameras: [...new Set(album.photos.map(p => p.camera).filter(Boolean))],
+        lenses: [...new Set(album.photos.map(p => p.lens).filter(Boolean))],
+      };
+    })
     .sort((a, b) => {
       const da = a.firstPhotoDate ? new Date(a.firstPhotoDate) : new Date(0);
       const db = b.firstPhotoDate ? new Date(b.firstPhotoDate) : new Date(0);
@@ -165,11 +170,15 @@ const generateMetadata = async () => {
   console.log(`Found ${objects.length} objects`);
 
   console.log('Loading EXIF cache...');
-  const exifCache = await loadExifCache(client, bucketName);
+  const exifCache = await loadJson(client, bucketName, 'exif-cache.json');
   console.log(`EXIF cache has ${Object.keys(exifCache).length} entries`);
 
+  console.log('Loading album covers...');
+  const albumCovers = await loadJson(client, bucketName, 'album-covers.json');
+  console.log(`Album covers: ${Object.keys(albumCovers).length} configured`);
+
   console.log('Parsing album structure...');
-  const albums = parseObjects(objects, publicUrl, exifCache);
+  const albums = parseObjects(objects, publicUrl, exifCache, albumCovers);
   console.log(`Generated ${albums.length} albums`);
 
   const metadata = { albums };
