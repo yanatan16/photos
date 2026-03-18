@@ -62,6 +62,7 @@ const thumbnailKey = (key) => {
 
 const isPhoto = (key) => {
   if (!key.includes('/')) return false;
+  if (key.includes(`/${THUMBNAIL_DIR}/`)) return false;
   const parts = key.split('/');
   const filename = parts[parts.length - 1];
   if (!filename || filename.startsWith('.')) return false;
