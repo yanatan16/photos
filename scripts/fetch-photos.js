@@ -73,6 +73,12 @@ const thumbnailKey = (key) => {
   return [...parts, '.thumbnails', filename].join('/');
 };
 
+const webKey = (key) => {
+  const parts = key.split('/');
+  const filename = parts.pop();
+  return [...parts, '.web', filename].join('/');
+};
+
 const loadJson = async (client, bucketName, key) => {
   try {
     const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
@@ -85,6 +91,9 @@ const loadJson = async (client, bucketName, key) => {
 const parseObjects = (objects, publicUrl, exifCache, albumCovers) => {
   const existingThumbnails = new Set(
     objects.map(o => o.Key).filter(key => key.includes('/.thumbnails/'))
+  );
+  const existingWebPhotos = new Set(
+    objects.map(o => o.Key).filter(key => key.includes('/.web/'))
   );
 
   const albumMap = new Map();
@@ -117,11 +126,17 @@ const parseObjects = (objects, publicUrl, exifCache, albumCovers) => {
       ? buildPhotoUrl(publicUrl, thumbKey)
       : buildPhotoUrl(publicUrl, key);
 
+    const wKey = webKey(key);
+    const web = existingWebPhotos.has(wKey)
+      ? buildPhotoUrl(publicUrl, wKey)
+      : buildPhotoUrl(publicUrl, key);
+
     const exif = exifCache[key] || {};
     const album = albumMap.get(albumSlug);
     album.photos.push({
       url: buildPhotoUrl(publicUrl, key),
       thumbnail,
+      web,
       filename,
       date: exif.dateTaken || (obj.LastModified ? obj.LastModified.toISOString() : null),
       camera: exif.camera || null,

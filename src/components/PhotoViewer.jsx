@@ -80,7 +80,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
 
         <div className="viewer-image-container">
           <img
-            src={currentPhoto.url}
+            src={currentPhoto.web || currentPhoto.url}
             alt={currentPhoto.filename}
             className="viewer-image"
           />
@@ -89,6 +89,14 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
             <span className="viewer-counter">
               {currentIndex + 1} / {photos.length}
             </span>
+            <a
+              href={currentPhoto.url}
+              download={currentPhoto.filename}
+              className="viewer-download"
+              aria-label="Download original"
+            >
+              ↓
+            </a>
           </div>
           <ExifStrip photo={currentPhoto} />
         </div>

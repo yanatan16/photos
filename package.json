@@ -6,11 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build:photos": "node scripts/fetch-photos.js",
-    "extract-exif": "node scripts/extract-exif.js",
+    "process": "node scripts/process.js",
     "set-cover": "node scripts/set-cover.js",
     "r2": "node scripts/r2.js",
-    "thumbnails": "node scripts/generate-thumbnails.js",
-    "upload": "node scripts/upload-photos.js && npm run extract-exif",
+    "upload": "node scripts/upload-photos.js",
     "build:site": "vite build",
     "build": "npm run build:photos && npm run build:site",
     "preview": "vite preview",
