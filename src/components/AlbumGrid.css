@@ -204,6 +204,24 @@
   color: #888;
 }
 
+.site-footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #2a2a2a;
+  font-size: 0.8rem;
+  color: #555;
+  text-align: center;
+}
+
+.site-footer a {
+  color: #666;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: #aaa;
+}
+
 @media (max-width: 768px) {
   .album-grid-container {
     padding: 1rem;
