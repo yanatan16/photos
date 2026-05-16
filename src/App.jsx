@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import AlbumGrid from './components/AlbumGrid';
 import CameraGrid from './components/CameraGrid';
@@ -9,7 +9,7 @@ import photosData from './data/photos.json';
 const albums = photosData.albums;
 
 const App = () => (
-  <BrowserRouter basename={import.meta.env.BASE_URL}>
+  <HashRouter>
     <div className="app">
       <Routes>
         <Route element={<Layout />}>
@@ -20,7 +20,7 @@ const App = () => (
         <Route path="/album/:albumId" element={<PhotoGallery albums={albums} />} />
       </Routes>
     </div>
-  </BrowserRouter>
+  </HashRouter>
 );
 
 export default App;
