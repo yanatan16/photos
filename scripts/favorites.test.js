@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { favoriteKey, toggleFavorite, buildFavorites } from './favorites.js';
+import { favoriteKey, favoriteKeyFromUrl, toggleFavorite, buildFavorites } from './favorites.js';
 
 test('favoriteKey joins album slug and filename', () => {
   assert.equal(favoriteKey('2025-italy', 'a.jpg'), '2025-italy/a.jpg');
@@ -35,4 +35,15 @@ test('buildFavorites selects matching photos, newest first, skips missing', () =
 test('buildFavorites returns [] when there are no favorites', () => {
   const albums = [{ id: 'a', photos: [{ filename: 'x.jpg', date: null }] }];
   assert.deepEqual(buildFavorites(albums, []), []);
+});
+
+test('favoriteKeyFromUrl strips origin and leading slash', () => {
+  assert.equal(
+    favoriteKeyFromUrl('https://pub-abc.r2.dev/2026-boulder-winter/DSC01652.jpg'),
+    '2026-boulder-winter/DSC01652.jpg'
+  );
+});
+
+test('favoriteKeyFromUrl handles nested paths', () => {
+  assert.equal(favoriteKeyFromUrl('https://x.example/a-b/c/d.jpg'), 'a-b/c/d.jpg');
 });

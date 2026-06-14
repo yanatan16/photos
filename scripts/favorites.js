@@ -1,5 +1,7 @@
 export const favoriteKey = (albumSlug, filename) => `${albumSlug}/${filename}`;
 
+export const favoriteKeyFromUrl = (url) => new URL(url).pathname.replace(/^\/+/, '');
+
 export const toggleFavorite = (favorites, key) => {
   if (favorites.includes(key)) {
     return { favorites: favorites.filter(k => k !== key), action: 'removed' };
