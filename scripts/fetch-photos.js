@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { buildFavorites } from './favorites.js';
 
 dotenv.config();
 
@@ -79,12 +80,12 @@ const webKey = (key) => {
   return [...parts, '.web', filename].join('/');
 };
 
-const loadJson = async (client, bucketName, key) => {
+const loadJson = async (client, bucketName, key, fallback = {}) => {
   try {
     const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
     return JSON.parse(await response.Body.transformToString());
   } catch {
-    return {};
+    return fallback;
   }
 };
 
@@ -192,11 +193,18 @@ const generateMetadata = async () => {
   const albumCovers = await loadJson(client, bucketName, 'album-covers.json');
   console.log(`Album covers: ${Object.keys(albumCovers).length} configured`);
 
+  console.log('Loading favorites...');
+  const favoriteKeys = await loadJson(client, bucketName, 'favorites.json', []);
+  console.log(`Favorites: ${favoriteKeys.length} configured`);
+
   console.log('Parsing album structure...');
   const albums = parseObjects(objects, publicUrl, exifCache, albumCovers);
   console.log(`Generated ${albums.length} albums`);
 
-  const metadata = { albums };
+  const favorites = buildFavorites(albums, favoriteKeys);
+  console.log(`Resolved ${favorites.length} favorite photos`);
+
+  const metadata = { albums, favorites };
 
   const outputPath = join(__dirname, '..', 'src', 'data', 'photos.json');
   mkdirSync(dirname(outputPath), { recursive: true });
