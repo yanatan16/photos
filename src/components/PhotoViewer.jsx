@@ -62,6 +62,7 @@ const ExifStrip = ({ photo }) => {
 const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   const currentPhoto = photos[currentIndex];
   const { enabled, isFavorite, toggle, pending } = useFavorites();
+  const favorited = isFavorite(currentPhoto.url);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === photos.length - 1;
 
@@ -135,12 +136,12 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
             </a>
             {enabled && (
               <button
-                className={`viewer-favorite${isFavorite(currentPhoto.url) ? ' is-favorite' : ''}`}
+                className={`viewer-favorite${favorited ? ' is-favorite' : ''}`}
                 onClick={() => toggle(currentPhoto.url)}
                 disabled={pending}
-                aria-label={isFavorite(currentPhoto.url) ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
               >
-                <HeartIcon filled={isFavorite(currentPhoto.url)} />
+                <HeartIcon filled={favorited} />
               </button>
             )}
           </div>
