@@ -45,6 +45,22 @@ const ChevronIcon = ({ direction }) => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg
+    className="viewer-close-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <line x1="6" y1="6" x2="18" y2="18" />
+    <line x1="18" y1="6" x2="6" y2="18" />
+  </svg>
+);
+
 const ExifStrip = ({ photo }) => {
   const fields = EXIF_FIELDS.filter(f => photo[f.key]);
   if (fields.length === 0) return null;
@@ -102,7 +118,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   return (
     <div className="photo-viewer-overlay" onClick={handleBackdropClick}>
       <button className="viewer-close" onClick={onClose} aria-label="Close">
-        ×
+        <CloseIcon />
       </button>
 
       <div className="viewer-content">
