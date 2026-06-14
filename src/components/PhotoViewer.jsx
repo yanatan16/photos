@@ -10,6 +10,25 @@ const EXIF_FIELDS = [
   { key: 'iso' },
 ];
 
+const ChevronIcon = ({ direction }) => (
+  <svg
+    className="viewer-nav-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {direction === 'left' ? (
+      <polyline points="15 6 9 12 15 18" />
+    ) : (
+      <polyline points="9 6 15 12 9 18" />
+    )}
+  </svg>
+);
+
 const ExifStrip = ({ photo }) => {
   const fields = EXIF_FIELDS.filter(f => photo[f.key]);
   if (fields.length === 0) return null;
@@ -75,7 +94,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
           disabled={isFirst}
           aria-label="Previous photo"
         >
-          ‹
+          <ChevronIcon direction="left" />
         </button>
 
         <div className="viewer-image-container">
@@ -107,7 +126,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
           disabled={isLast}
           aria-label="Next photo"
         >
-          ›
+          <ChevronIcon direction="right" />
         </button>
       </div>
     </div>

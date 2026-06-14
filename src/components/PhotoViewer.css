@@ -108,11 +108,15 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s, opacity 0.2s;
+}
+
+.viewer-nav-icon {
+  width: 32px;
+  height: 32px;
 }
 
 .viewer-nav:hover:not(:disabled) {
@@ -140,7 +144,11 @@
   .viewer-nav {
     width: 48px;
     height: 48px;
-    font-size: 2rem;
+  }
+
+  .viewer-nav-icon {
+    width: 24px;
+    height: 24px;
   }
 
   .viewer-nav-left {
