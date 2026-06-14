@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import './PhotoViewer.css';
+import { useFavorites } from '../context/FavoritesContext';
 
 const EXIF_FIELDS = [
   { key: 'camera', primary: true },
@@ -9,6 +10,21 @@ const EXIF_FIELDS = [
   { key: 'shutter' },
   { key: 'iso' },
 ];
+
+const HeartIcon = ({ filled }) => (
+  <svg
+    className="viewer-favorite-icon"
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+  </svg>
+);
 
 const ChevronIcon = ({ direction }) => (
   <svg
@@ -45,6 +61,7 @@ const ExifStrip = ({ photo }) => {
 
 const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   const currentPhoto = photos[currentIndex];
+  const { enabled, isFavorite, toggle, pending } = useFavorites();
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === photos.length - 1;
 
@@ -116,6 +133,16 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
             >
               ↓
             </a>
+            {enabled && (
+              <button
+                className={`viewer-favorite${isFavorite(currentPhoto.url) ? ' is-favorite' : ''}`}
+                onClick={() => toggle(currentPhoto.url)}
+                disabled={pending}
+                aria-label={isFavorite(currentPhoto.url) ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <HeartIcon filled={isFavorite(currentPhoto.url)} />
+              </button>
+            )}
           </div>
           <ExifStrip photo={currentPhoto} />
         </div>
