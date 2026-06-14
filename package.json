@@ -9,6 +9,7 @@
     "build:photos": "node scripts/fetch-photos.js",
     "process": "node scripts/process.js",
     "set-cover": "node scripts/set-cover.js",
+    "favorite": "node scripts/favorite.js",
     "r2": "node scripts/r2.js",
     "upload": "node scripts/upload-photos.js",
     "build:site": "vite build",
