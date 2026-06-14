@@ -15,6 +15,7 @@ const Layout = () => (
     </header>
     <nav className="album-nav">
       <NavTab to="/" end>All</NavTab>
+      <NavTab to="/favorites">Favorites</NavTab>
       <NavTab to="/camera">Camera</NavTab>
     </nav>
     <Outlet />
