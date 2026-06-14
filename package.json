@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "node --test",
     "build:photos": "node scripts/fetch-photos.js",
     "process": "node scripts/process.js",
     "set-cover": "node scripts/set-cover.js",
