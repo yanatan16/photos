@@ -1,8 +1,16 @@
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PhotoViewer from './PhotoViewer';
+import { useDeletions } from '../context/DevToolsContext';
 import './PhotoGrid.css';
 
 const PhotoGrid = ({ photos }) => {
+  const { isDeleted } = useDeletions();
+  const visible = useMemo(
+    () => photos.filter(photo => !isDeleted(photo.url)),
+    [photos, isDeleted]
+  );
+
   const [searchParams, setSearchParams] = useSearchParams();
   const photoParam = searchParams.get('photo');
   const selectedIndex = photoParam !== null ? parseInt(photoParam, 10) : null;
@@ -22,7 +30,7 @@ const PhotoGrid = ({ photos }) => {
   return (
     <>
       <div className="photo-grid">
-        {photos.map((photo, index) => (
+        {visible.map((photo, index) => (
           <button
             key={photo.url}
             className="photo-card"
@@ -32,9 +40,9 @@ const PhotoGrid = ({ photos }) => {
           </button>
         ))}
       </div>
-      {selectedIndex !== null && (
+      {selectedIndex !== null && selectedIndex < visible.length && (
         <PhotoViewer
-          photos={photos}
+          photos={visible}
           currentIndex={selectedIndex}
           onClose={closePhoto}
           onNavigate={openPhoto}
