@@ -4,6 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { buildFavorites } from './favorites.js';
+import { thumbnailKey, webKey } from './keys.js';
 
 dotenv.config();
 
@@ -66,18 +67,6 @@ const formatAlbumName = (folderName) => {
 
 const buildPhotoUrl = (publicUrl, key) => {
   return `${publicUrl}/${key}`;
-};
-
-const thumbnailKey = (key) => {
-  const parts = key.split('/');
-  const filename = parts.pop();
-  return [...parts, '.thumbnails', filename].join('/');
-};
-
-const webKey = (key) => {
-  const parts = key.split('/');
-  const filename = parts.pop();
-  return [...parts, '.web', filename].join('/');
 };
 
 const loadJson = async (client, bucketName, key, fallback = {}) => {
