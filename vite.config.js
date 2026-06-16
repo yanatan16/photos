@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { favoritesDevPlugin } from './scripts/favoritesDevServer.js'
+import { devApiPlugin } from './scripts/devApiServer.js'
 
 export default defineConfig({
-  plugins: [react(), favoritesDevPlugin()],
+  plugins: [react(), devApiPlugin()],
   base: '/photos/',
   build: {
     outDir: 'dist',
