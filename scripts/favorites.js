@@ -1,5 +1,9 @@
 export const favoriteKey = (albumSlug, filename) => `${albumSlug}/${filename}`;
 
+export const albumSlugFromKey = (key) => key.split('/')[0];
+
+export const filenameFromKey = (key) => key.split('/').slice(1).join('/');
+
 export const favoriteKeyFromUrl = (url) => new URL(url).pathname.replace(/^\/+/, '');
 
 export const toggleFavorite = (favorites, key) => {

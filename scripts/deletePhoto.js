@@ -1,14 +1,11 @@
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, getBucketName } from './r2client.js';
 import { thumbnailKey, webKey } from './keys.js';
+import { albumSlugFromKey, filenameFromKey } from './favorites.js';
 import { loadFavorites, saveFavorites } from './favoritesStore.js';
 import { loadCovers, saveCovers } from './coversStore.js';
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
-
-export const albumSlugFromKey = (key) => key.split('/')[0];
-
-export const filenameFromKey = (key) => key.split('/').slice(1).join('/');
 
 export const removeKey = (favorites, key) => favorites.filter(k => k !== key);
 

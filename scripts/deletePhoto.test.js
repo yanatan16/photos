@@ -1,15 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { albumSlugFromKey, filenameFromKey, removeKey, clearCoverIfMatches } from './deletePhoto.js';
-
-test('albumSlugFromKey returns the first path segment', () => {
-  assert.equal(albumSlugFromKey('2025-italy/a.jpg'), '2025-italy');
-});
-
-test('filenameFromKey returns everything after the album slug', () => {
-  assert.equal(filenameFromKey('2025-italy/a.jpg'), 'a.jpg');
-  assert.equal(filenameFromKey('a-b/c/d.jpg'), 'c/d.jpg');
-});
+import { removeKey, clearCoverIfMatches } from './deletePhoto.js';
 
 test('removeKey drops the matching key', () => {
   assert.deepEqual(removeKey(['x/a.jpg', 'y/b.jpg'], 'x/a.jpg'), ['y/b.jpg']);

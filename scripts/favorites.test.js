@@ -1,9 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { favoriteKey, favoriteKeyFromUrl, toggleFavorite, buildFavorites } from './favorites.js';
+import { favoriteKey, albumSlugFromKey, filenameFromKey, favoriteKeyFromUrl, toggleFavorite, buildFavorites } from './favorites.js';
 
 test('favoriteKey joins album slug and filename', () => {
   assert.equal(favoriteKey('2025-italy', 'a.jpg'), '2025-italy/a.jpg');
+});
+
+test('albumSlugFromKey returns the first path segment', () => {
+  assert.equal(albumSlugFromKey('2025-italy/a.jpg'), '2025-italy');
+});
+
+test('filenameFromKey returns everything after the album slug', () => {
+  assert.equal(filenameFromKey('2025-italy/a.jpg'), 'a.jpg');
+  assert.equal(filenameFromKey('a-b/c/d.jpg'), 'c/d.jpg');
 });
 
 test('toggleFavorite adds a missing key', () => {
