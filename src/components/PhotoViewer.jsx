@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import './PhotoViewer.css';
-import { useFavorites } from '../context/FavoritesContext';
+import { useFavorites } from '../context/DevToolsContext';
 
 const EXIF_FIELDS = [
   { key: 'camera', primary: true },
