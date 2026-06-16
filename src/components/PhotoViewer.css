@@ -184,7 +184,8 @@
   }
 }
 
-.viewer-favorite {
+.viewer-favorite,
+.viewer-action {
   display: flex;
   align-items: center;
   padding: 0;
@@ -195,7 +196,8 @@
   transition: color 0.2s;
 }
 
-.viewer-favorite:hover:not(:disabled) {
+.viewer-favorite:hover:not(:disabled),
+.viewer-action:hover:not(:disabled) {
   color: #e0e0e0;
 }
 
@@ -203,9 +205,23 @@
   color: #e0552e;
 }
 
-.viewer-favorite:disabled {
+.viewer-action.is-cover {
+  color: #4a9eff;
+}
+
+.viewer-delete:hover:not(:disabled) {
+  color: #e0552e;
+}
+
+.viewer-favorite:disabled,
+.viewer-action:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+.viewer-action-icon {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .viewer-favorite-icon {

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import './PhotoViewer.css';
-import { useFavorites } from '../context/DevToolsContext';
+import { useFavorites, useCovers, useDeletions } from '../context/DevToolsContext';
 
 const EXIF_FIELDS = [
   { key: 'camera', primary: true },
@@ -61,6 +61,41 @@ const CloseIcon = () => (
   </svg>
 );
 
+const CoverIcon = ({ active }) => (
+  <svg
+    className="viewer-action-icon"
+    viewBox="0 0 24 24"
+    fill={active ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg
+    className="viewer-action-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
 const ExifStrip = ({ photo }) => {
   const fields = EXIF_FIELDS.filter(f => photo[f.key]);
   if (fields.length === 0) return null;
@@ -76,9 +111,11 @@ const ExifStrip = ({ photo }) => {
 };
 
 const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
-  const currentPhoto = photos[currentIndex];
   const { enabled, isFavorite, toggle, pending } = useFavorites();
-  const favorited = isFavorite(currentPhoto.url);
+  const { isCover, setCover, pending: coverPending } = useCovers();
+  const { deletePhoto, pending: deletePending } = useDeletions();
+
+  const currentPhoto = photos[currentIndex];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === photos.length - 1;
 
@@ -108,6 +145,18 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
+
+  if (!currentPhoto) return null;
+
+  const favorited = isFavorite(currentPhoto.url);
+  const photoIsCover = isCover(currentPhoto.url);
+
+  const handleDelete = () => {
+    const ok = window.confirm(`Delete "${currentPhoto.filename}"? This permanently removes it from R2.`);
+    if (!ok) return;
+    if (isLast) onClose();
+    deletePhoto(currentPhoto.url);
+  };
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -151,14 +200,32 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
               ↓
             </a>
             {enabled && (
-              <button
-                className={`viewer-favorite${favorited ? ' is-favorite' : ''}`}
-                onClick={() => toggle(currentPhoto.url)}
-                disabled={pending}
-                aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <HeartIcon filled={favorited} />
-              </button>
+              <>
+                <button
+                  className={`viewer-favorite${favorited ? ' is-favorite' : ''}`}
+                  onClick={() => toggle(currentPhoto.url)}
+                  disabled={pending}
+                  aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <HeartIcon filled={favorited} />
+                </button>
+                <button
+                  className={`viewer-action${photoIsCover ? ' is-cover' : ''}`}
+                  onClick={() => setCover(currentPhoto.url)}
+                  disabled={coverPending || photoIsCover}
+                  aria-label={photoIsCover ? 'Current album cover' : 'Set as album cover'}
+                >
+                  <CoverIcon active={photoIsCover} />
+                </button>
+                <button
+                  className="viewer-action viewer-delete"
+                  onClick={handleDelete}
+                  disabled={deletePending}
+                  aria-label="Delete photo"
+                >
+                  <TrashIcon />
+                </button>
+              </>
             )}
           </div>
           <ExifStrip photo={currentPhoto} />
