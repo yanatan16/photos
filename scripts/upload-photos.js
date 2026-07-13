@@ -17,6 +17,24 @@ const MIME_TYPES = {
   '.heic': 'image/heic',
 };
 
+const MAX_ATTEMPTS = 4;
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async (label, operation) => {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === MAX_ATTEMPTS) throw error;
+      const backoffMs = 500 * 2 ** (attempt - 1);
+      console.warn(`  ! ${label} failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${error.message}`);
+      console.warn(`    retrying in ${backoffMs}ms...`);
+      await delay(backoffMs);
+    }
+  }
+};
+
 const createS3Client = () => {
   const accountId = process.env.R2_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -39,12 +57,12 @@ const uploadFile = async (client, bucketName, folder, filePath) => {
   const key = `${folder}/${filename}`;
   const body = readFileSync(filePath);
 
-  await client.send(new PutObjectCommand({
+  await withRetry(`upload ${key}`, () => client.send(new PutObjectCommand({
     Bucket: bucketName,
     Key: key,
     Body: body,
     ContentType: MIME_TYPES[ext] ?? 'application/octet-stream',
-  }));
+  })));
 
   return key;
 };
