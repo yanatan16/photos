@@ -4,6 +4,8 @@ import { thumbnailKey, webKey } from './keys.js';
 import { albumSlugFromKey, filenameFromKey } from './favorites.js';
 import { loadFavorites, saveFavorites } from './favoritesStore.js';
 import { loadCovers, saveCovers } from './coversStore.js';
+import { loadLensOverrides, saveLensOverrides } from './lensOverridesStore.js';
+import { setLensOverride } from './lensOverrides.js';
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
 
@@ -35,5 +37,11 @@ export const deletePhoto = async (key) => {
   const cleanedCovers = clearCoverIfMatches(covers, albumSlugFromKey(key), filenameFromKey(key));
   if (cleanedCovers !== covers) {
     await saveCovers(cleanedCovers);
+  }
+
+  const lensOverrides = await loadLensOverrides();
+  const { overrides: cleanedOverrides, action } = setLensOverride(lensOverrides, key, '');
+  if (action === 'cleared') {
+    await saveLensOverrides(cleanedOverrides);
   }
 };

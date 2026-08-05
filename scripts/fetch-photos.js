@@ -4,6 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { buildFavorites } from './favorites.js';
+import { photoLensFields } from './lensOverrides.js';
 import { thumbnailKey, webKey } from './keys.js';
 
 dotenv.config();
@@ -78,7 +79,7 @@ const loadJson = async (client, bucketName, key, fallback = {}) => {
   }
 };
 
-const parseObjects = (objects, publicUrl, exifCache, albumCovers) => {
+const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOverrides) => {
   const existingThumbnails = new Set(
     objects.map(o => o.Key).filter(key => key.includes('/.thumbnails/'))
   );
@@ -130,11 +131,10 @@ const parseObjects = (objects, publicUrl, exifCache, albumCovers) => {
       filename,
       date: exif.dateTaken || (obj.LastModified ? obj.LastModified.toISOString() : null),
       camera: exif.camera || null,
-      lens: exif.lens || null,
       aperture: exif.aperture || null,
       shutter: exif.shutter || null,
       iso: exif.iso || null,
-      focalLength: exif.focalLength || null,
+      ...photoLensFields(exif, lensOverrides[key]),
     });
   });
 
@@ -186,8 +186,12 @@ const generateMetadata = async () => {
   const favoriteKeys = await loadJson(client, bucketName, 'favorites.json', []);
   console.log(`Favorites: ${favoriteKeys.length} configured`);
 
+  console.log('Loading lens overrides...');
+  const lensOverrides = await loadJson(client, bucketName, 'lens-overrides.json');
+  console.log(`Lens overrides: ${Object.keys(lensOverrides).length} configured`);
+
   console.log('Parsing album structure...');
-  const albums = parseObjects(objects, publicUrl, exifCache, albumCovers);
+  const albums = parseObjects(objects, publicUrl, exifCache, albumCovers, lensOverrides);
   console.log(`Generated ${albums.length} albums`);
 
   const favorites = buildFavorites(albums, favoriteKeys);

@@ -10,6 +10,7 @@
     "copy-images": "node scripts/copy-images.js",
     "process": "node scripts/process.js",
     "set-cover": "node scripts/set-cover.js",
+    "set-lens": "node scripts/set-lens.js",
     "favorite": "node scripts/favorite.js",
     "r2": "node scripts/r2.js",
     "upload": "node scripts/upload-photos.js",
