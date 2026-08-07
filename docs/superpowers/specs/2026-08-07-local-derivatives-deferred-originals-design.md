@@ -55,13 +55,13 @@ Argument parsing, validation, concurrency, and the progress display are
 unchanged. The per-file worker becomes derive-then-upload:
 
 1. `sharp(filePath)` produces the thumbnail (600px, q80) and the web image
-   (2048px, q85, **`.withMetadata()`**), reusing the `resizeTo` shape from
+   (2048px, q85, **`keepMetadata()`**), reusing the `resizeTo` shape from
    `process.js:179`.
 2. Both buffers upload to `album/.thumbnails/name.jpg` and `album/.web/name.jpg`.
 3. `{ localPath, key }` is appended to the pending-originals manifest, where
    `key` is the original's logical key (`album/name.jpg`).
 
-`.withMetadata()` is load-bearing. sharp strips EXIF by default, and once the
+`keepMetadata()` is load-bearing. sharp strips EXIF by default, and once the
 original is absent the web derivative is the only EXIF source. Existing `.web/`
 objects were written without it and carry no EXIF — that is fine, because every
 one of them is already in `exif-cache.json` and will never be re-read.
@@ -98,7 +98,7 @@ count-mode path the EXIF phase uses. The task shows `resizing`, then gains a rea
 bar. The aggregate total firms up over the first few seconds rather than lying.
 
 `renderDisplay` and `renderBar` are untouched, so `progress.test.js` stays valid;
-the new behaviour is covered by extending the `renderDisplay` cases.
+the new behaviour is covered by extending the `createProgressDisplay` cases.
 
 ### `scripts/pendingOriginals.js` (new)
 
@@ -112,9 +112,12 @@ export const addPending = (entries, entry) => /* Array, deduped by key */;
 export const removePending = (entries, key) => /* Array */;
 export const parsePending = (text) => /* Array, [] on malformed */;
 
-// shell
-export const loadPending = (path) => /* Array */;
-export const savePending = (path, entries) => /* void */;
+// shell — read/write injected, so the queue is testable without touching disk
+export const createPendingQueue = ({ read, write }) => ({
+  load: () => /* Array */,
+  add: (entry) => /* Promise<Array> */,
+  remove: (key) => /* Promise<Array> */,
+});
 ```
 
 `addPending` dedupes by `key`: re-uploading the same photo replaces its entry
@@ -160,12 +163,12 @@ Adds the inverse of the two existing helpers:
 
 ```js
 export const originalKey = (key) => /* 'a/.web/p.jpg' | 'a/.thumbnails/p.jpg' → 'a/p.jpg' */;
-export const logicalPhotoKeys = (objects) => /* Set of original keys */;
+export const logicalPhotoKeys = (keys) => /* Set of original keys */;
 ```
 
 `logicalPhotoKeys` is the discovery inversion: the union of original keys present
 in the bucket and the originals *implied* by `.web/` keys. It is pure — it takes
-the `ListObjectsV2` contents and returns a Set — so it is directly testable.
+an array of object keys and returns a Set — so it is directly testable.
 
 `process.js:29-36` currently defines its own `derivedKey`/`thumbnailKey`/`webKey`,
 duplicating `keys.js` exactly. Those go; `process.js` imports them.
@@ -207,11 +210,13 @@ that now carries their metadata.
 
 - A file sharp cannot decode fails that item only; the batch settles and the
   summary lists it, per `mapWithConcurrency`'s existing contract.
-- **HEIC fails earlier and louder.** `.heic` is in `SUPPORTED_EXTENSIONS`
-  (`upload-photos.js:11`), but prebuilt sharp has no HEIC decoder. Today it
-  uploads fine and fails later inside `process.js`; now it fails at upload. Not a
-  new failure — the error message says so explicitly rather than surfacing a raw
-  libvips string.
+- **HEIC is rejected at validation.** Verified against this repo's sharp 0.34.5 /
+  libvips 8.17.3: `metadata()` on a HEIC succeeds, but any pixel operation fails
+  with `source: bad seek to <n>` where `n` exceeds the file length, for both file
+  and buffer input. Since only derivatives are uploaded up front, a photo that
+  cannot be resized cannot be published at all — so `.heic`/`.heif` leave
+  `SUPPORTED_EXTENSIONS` and `validateFiles` rejects them with a message naming
+  the `sips` conversion, rather than surfacing a raw libvips string later.
 - A photo whose derivative upload failed is not added to the manifest, so a
   re-run redoes the whole photo rather than leaving a queued original with no
   images in the bucket.
@@ -239,14 +244,38 @@ that now carries their metadata.
 - `parsePending` returns `[]` for malformed JSON and for missing input.
 
 **`progress.test.js`** (extended)
-- `renderDisplay` computes `bytesTotal` from the tasks, so a task gaining a
-  `total` mid-run raises the aggregate denominator.
+- `createProgressDisplay` sums `bytesTotal` from its tasks, so a task gaining a
+  `total` mid-run raises the aggregate denominator and yields a finite eta.
+  `renderDisplay` still reads `bytesTotal` off the state it is handed — it stays
+  pure and unchanged.
 - A `total: null` task still renders in count mode with its note.
 
 **`upload-photos.test.js`** (extended)
 - `parseArgs` unchanged.
-- The derivative key pair for a file resolves to `.thumbnails/` and `.web/` under
-  the target folder.
+- `validateFiles` reports a missing file, an unsupported extension, and rejects
+  HEIC with an actionable conversion message.
+
+**`derivatives.test.js`** (new)
+- Each derivative resizes to its target width and emits JPEG.
+- `makeWebSized` preserves EXIF; `makeThumbnail` drops it. This is the assertion
+  the deferred-original design rests on.
+- Neither enlarges a photo already smaller than its target.
+
+**`upload.test.js`** (new)
+- `contentTypeFor` maps known extensions and falls back to
+  `application/octet-stream`.
+- `SUPPORTED_EXTENSIONS` excludes `.heic`/`.heif`.
+
+**`fetch-photos.test.js`** (new — `parseObjects` becomes exported, and the module
+gains the entry-point guard `upload-photos.js:130` already uses, so importing it
+does not run the build)
+- An album builds from an original plus both derivatives.
+- A photo whose original is still queued still appears, with `url` on the
+  original key and `web` on the derivative.
+- A deferred photo takes its date from the web derivative's `LastModified`.
+- EXIF date wins over object modification time.
+- Root files and non-images are ignored.
+- Albums sort newest first and honour a configured cover.
 
 The sharp resizes, the R2-effecting paths, and the live ANSI rendering are
 verified manually against the real bucket, as with previous work in this repo.
@@ -257,10 +286,13 @@ New: `scripts/pendingOriginals.js`, `scripts/upload-originals.js`,
 `scripts/derivatives.js`, `scripts/upload.js`, and
 `scripts/pendingOriginals.test.js`.
 
+Also new: `scripts/derivatives.test.js`, `scripts/upload.test.js`,
+`scripts/fetch-photos.test.js`.
+
 Modified: `scripts/upload-photos.js`, `scripts/process.js`,
 `scripts/fetch-photos.js`, `scripts/keys.js`, `scripts/progress.js`,
 `scripts/keys.test.js`, `scripts/progress.test.js`,
 `scripts/upload-photos.test.js`, `package.json` (adds `upload:originals`),
-`.gitignore` (adds `.pending-originals.json`).
+`.gitignore` (adds `.pending-originals.json`), `CLAUDE.md` (documents the flow).
 
 Removed: `process.js`'s duplicated `derivedKey`/`thumbnailKey`/`webKey`.
