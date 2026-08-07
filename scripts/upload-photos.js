@@ -45,9 +45,9 @@ export const validateFiles = (files) => {
 
 // ── upload ────────────────────────────────────────────────────────────────────
 
-// Both derivatives upload at once, so the task's byte count is the sum of two
-// independent progress streams. Each one reports an absolute `loaded`, so they
-// are tracked separately and summed rather than added as they arrive.
+// The thumbnail and web uploads (sequential — see the send site below) each
+// report an absolute cumulative `loaded`, not a delta. They're tracked in
+// separate slots and summed so the task's progress reflects both.
 const createByteTracker = (report) => {
   const loaded = { thumbnail: 0, web: 0 };
   return (which) => (bytes) => {

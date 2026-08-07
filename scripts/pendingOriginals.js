@@ -13,6 +13,12 @@ export const addPending = (entries, entry) =>
 export const removePending = (entries, key) =>
   entries.filter(pending => pending.key !== key);
 
+// A pending entry is "under" a key if it matches exactly (a single-file key)
+// or falls beneath it as an album prefix — used to flag entries left stale by
+// an R2 operation that changed or removed that key without touching the queue.
+export const pendingEntriesUnder = (entries, key) =>
+  entries.filter(pending => pending.key === key || pending.key.startsWith(`${key}/`));
+
 export const parsePending = (text) => {
   try {
     const parsed = JSON.parse(text);

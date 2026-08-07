@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addPending, removePending, parsePending, createPendingQueue,
+  addPending, removePending, parsePending, pendingEntriesUnder, createPendingQueue,
 } from './pendingOriginals.js';
 
 const entry = (name) => ({ localPath: `/photos/${name}`, key: `album/${name}` });
@@ -25,6 +25,25 @@ test('removePending drops one entry and keeps the order of the rest', () => {
 
 test('removePending is a no-op for an unknown key', () => {
   assert.deepEqual(removePending([entry('a.jpg')], 'album/zz.jpg'), [entry('a.jpg')]);
+});
+
+test('pendingEntriesUnder matches an exact single-file key', () => {
+  const entries = [entry('a.jpg'), entry('b.jpg')];
+  assert.deepEqual(pendingEntriesUnder(entries, 'album/a.jpg'), [entry('a.jpg')]);
+});
+
+test('pendingEntriesUnder matches entries beneath an album prefix', () => {
+  const entries = [entry('a.jpg'), entry('b.jpg'), { localPath: '/photos/c.jpg', key: 'other/c.jpg' }];
+  assert.deepEqual(pendingEntriesUnder(entries, 'album'), [entry('a.jpg'), entry('b.jpg')]);
+});
+
+test('pendingEntriesUnder does not match a prefix that merely shares characters', () => {
+  const entries = [{ localPath: '/photos/x.jpg', key: 'album-2/x.jpg' }];
+  assert.deepEqual(pendingEntriesUnder(entries, 'album'), []);
+});
+
+test('pendingEntriesUnder returns an empty array when nothing matches', () => {
+  assert.deepEqual(pendingEntriesUnder([entry('a.jpg')], 'other'), []);
 });
 
 test('parsePending returns an array, or empty for anything unusable', () => {

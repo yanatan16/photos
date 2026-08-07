@@ -6,6 +6,7 @@ import { loadFavorites, saveFavorites } from './favoritesStore.js';
 import { loadCovers, saveCovers } from './coversStore.js';
 import { loadLensOverrides, saveLensOverrides } from './lensOverridesStore.js';
 import { setLensOverride } from './lensOverrides.js';
+import { createPendingQueue } from './pendingOriginals.js';
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
 
@@ -26,6 +27,11 @@ export const deletePhoto = async (key) => {
   for (const objectKey of [key, thumbnailKey(key), webKey(key)]) {
     await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: objectKey }));
   }
+
+  // A queued original is uploaded by a later `upload:originals` run regardless
+  // of what has since happened in R2. Leaving it queued after a delete would
+  // re-publish the original (with no derivatives) and resurrect this photo.
+  await createPendingQueue().remove(key);
 
   const favorites = await loadFavorites();
   const cleanedFavorites = removeKey(favorites, key);

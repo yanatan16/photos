@@ -1,6 +1,7 @@
 import { ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, getBucketName } from './r2client.js';
 import { formatBytes } from './format.js';
+import { createPendingQueue, pendingEntriesUnder } from './pendingOriginals.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,19 @@ const ls = async (client, bucketName, [prefix = '']) => {
   console.log(`\n${objects.length} object${objects.length !== 1 ? 's' : ''}`);
 };
 
+// The pending-originals queue is keyed by the original's R2 key, which mv/rm
+// can change or remove underneath it. Remapping the queue is out of scope —
+// this only surfaces a warning so a human can re-check the manifest before
+// draining it and writing an original back under a now-stale key.
+const warnIfPending = (key, verb) => {
+  const stale = pendingEntriesUnder(createPendingQueue().load(), key);
+  if (stale.length === 0) return;
+
+  console.warn(`\nWarning: ${stale.length} pending original(s) still reference "${key}" after this ${verb}:`);
+  for (const entry of stale) console.warn(`  ${entry.key}`);
+  console.warn('Re-check .pending-originals.json before running `npm run upload:originals`.');
+};
+
 const mv = async (client, bucketName, [src, dest]) => {
   if (!src || !dest) throw new Error('Usage: r2 mv <source> <dest>');
 
@@ -63,6 +77,8 @@ const mv = async (client, bucketName, [src, dest]) => {
     console.log(`${src} → ${dest}`);
     await moveOne(src, dest);
   }
+
+  warnIfPending(src, 'mv');
 };
 
 const rm = async (client, bucketName, [key]) => {
@@ -81,6 +97,8 @@ const rm = async (client, bucketName, [key]) => {
     console.log(`Removing ${key}`);
     await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
   }
+
+  warnIfPending(key, 'rm');
 };
 
 // ── dispatch ──────────────────────────────────────────────────────────────────

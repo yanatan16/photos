@@ -63,6 +63,7 @@ const fetchExifChunk = async (publicUrl, key) => {
   const response = await fetch(`${publicUrl}/${key}`, {
     headers: { Range: `bytes=0-${EXIF_FETCH_BYTES - 1}` },
   });
+  if (!response.ok) throw new Error(`EXIF fetch failed with ${response.status} for ${key}`);
   return Buffer.from(await response.arrayBuffer());
 };
 
