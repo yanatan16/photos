@@ -226,7 +226,7 @@ test('removePending is a no-op for an unknown key', () => {
 });
 
 test('parsePending returns an array, or empty for anything unusable', () => {
-  assert.deepEqual(parsePending('[{"localPath":"/p/a.jpg","key":"album/a.jpg"}]'), [entry('a.jpg')]);
+  assert.deepEqual(parsePending('[{"localPath":"/photos/a.jpg","key":"album/a.jpg"}]'), [entry('a.jpg')]);
   assert.deepEqual(parsePending(''), []);
   assert.deepEqual(parsePending('not json'), []);
   assert.deepEqual(parsePending('{"not":"an array"}'), []);
