@@ -1494,7 +1494,19 @@ npm run build:photos
 diff /tmp/photos-before.json src/data/photos.json && echo "IDENTICAL"
 ```
 
-Expected: `IDENTICAL`. The bucket has not changed, so the generated metadata must not either. If the diff is non-empty, inspect it before continuing — the only acceptable difference is the disappearance of a non-image file that was previously listed as a photo.
+Expected: **exactly three photos added, nothing removed, nothing else changed.**
+
+Measured against the real bucket before Task 9 was written: the old `isPhoto` discovery found 765 photos, the new `logicalPhotoKeys` finds 768. It loses none and gains these three, each of which has both a `.thumbnails/` and a `.web/` derivative but **no original**:
+
+```
+2025-brads-birthday/DSCF2070.jpg
+summer-2026/DSCF3779.jpg
+summer-2026/DSCF3830.jpg
+```
+
+That is the `.web/`-proves-existence rule meeting pre-existing orphaned derivatives — most likely partial deletions, since `deletePhoto.js` removes all three keys together. It is the intended rule working, not a bug, but it does mean three photos appear on the site that are not there today.
+
+Any OTHER difference — a removal, a fourth addition, or a changed field on an existing photo — is a real regression. Stop and report it rather than accepting it.
 
 - [ ] **Step 6: Run the full suite**
 
