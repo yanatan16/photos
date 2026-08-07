@@ -5,11 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev           # Start local dev server (Vite)
-npm run build:photos  # Fetch photo metadata from R2 → src/data/photos.json
-npm run build:site    # Compile React app with Vite → dist/
-npm run build         # Run both steps (required before preview/deploy)
-npm run preview       # Preview production build locally
+npm run dev              # Start local dev server (Vite)
+npm run upload           # <folder> <files...> — resize locally, upload derivatives, queue originals
+npm run upload:originals # Drain queued full-size originals (run on fast wifi)
+npm run process          # Backfill derivatives/EXIF for photos already in R2
+npm run build:photos     # Fetch photo metadata from R2 → src/data/photos.json
+npm run build:site       # Compile React app with Vite → dist/
+npm run build            # Run both build steps (required before preview/deploy)
+npm run preview          # Preview production build locally
 ```
 
 Local dev requires `.env` with R2 credentials (see `.env.example`). Run `build:photos` first to generate `src/data/photos.json` before starting dev server.
@@ -44,4 +47,7 @@ The Vite `base` is set to `/photos.joneisen.me/` for GitHub Pages deployment. CI
 }
 ```
 
-Note: `url` and `thumbnail` are currently identical (no separate thumbnail generation).
+Note: `url` points at the full-size original, which may not be uploaded yet —
+it is identity, not a fetched asset. The site renders `thumbnail` (600px) and
+`web` (2048px), both generated locally at upload time. `upload-photos.js` queues
+originals to a gitignored `.pending-originals.json`; `upload:originals` drains it.
