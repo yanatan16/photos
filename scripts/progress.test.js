@@ -187,3 +187,44 @@ test('createProgressDisplay tracks completed and failed counts', () => {
 
   assert.deepEqual(display.counts(), { completed: 1, failed: 1 });
 });
+
+test('setTaskTotal switches a task to a byte bar and feeds the aggregate total', () => {
+  const stream = fakeStream({ isTTY: true });
+  let now = 0;
+  const display = createProgressDisplay({
+    label: 'Uploading',
+    items: [{ id: 'a', name: 'a.jpg', totalBytes: null }],
+    stream,
+    clock: () => now,
+  });
+
+  display.startTask('a');
+  display.setTaskTotal('a', 4 * 1024 ** 2);
+  display.updateTask('a', 1024 ** 2);
+  now = 2000;
+  display.stop();
+
+  const output = stream.writes.join('');
+  assert.match(output, /1\.0 MB \/ 4\.0 MB/);
+  // 1 MB in 2 s = 0.5 MB/s; 3 MB remaining = 6 s. An eta at all proves
+  // bytesTotal came from the task rather than the construction-time sum of 0.
+  assert.match(output, /eta 6s/);
+});
+
+test('a task with no total yet still renders in count mode', () => {
+  const stream = fakeStream({ isTTY: true });
+  const display = createProgressDisplay({
+    label: 'Uploading',
+    items: [{ id: 'a', name: 'a.jpg', totalBytes: null }],
+    stream,
+    clock: () => 0,
+  });
+
+  display.startTask('a');
+  display.noteTask('a', 'resizing');
+  display.stop();
+
+  const output = stream.writes.join('');
+  assert.match(output, /resizing/);
+  assert.doesNotMatch(output, /a\.jpg.*%/);
+});

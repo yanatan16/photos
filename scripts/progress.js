@@ -85,7 +85,6 @@ export const createProgressDisplay = ({
     note: null,
   }]));
 
-  const bytesTotal = items.reduce((sum, item) => sum + (item.totalBytes ?? 0), 0);
   const startedAt = clock();
   const isTTY = Boolean(stream.isTTY);
 
@@ -100,7 +99,9 @@ export const createProgressDisplay = ({
     completed,
     failed,
     bytesDone: [...tasks.values()].reduce((sum, task) => sum + task.loaded, 0),
-    bytesTotal,
+    // Summed per snapshot, not captured up front: upload-photos.js only learns
+    // a photo's byte total once its derivatives have been resized.
+    bytesTotal: [...tasks.values()].reduce((sum, task) => sum + (task.total ?? 0), 0),
     startedAt,
     now: clock(),
     maxRows,
@@ -135,6 +136,7 @@ export const createProgressDisplay = ({
 
   return {
     startTask: (id) => patch(id, { state: 'active', note: null }),
+    setTaskTotal: (id, total) => patch(id, { total }),
     updateTask: (id, loaded) => patch(id, { loaded }),
     noteTask: (id, note) => patch(id, { note }),
 
