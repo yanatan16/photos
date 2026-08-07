@@ -2,6 +2,9 @@ import { ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-s
 import sharp from 'sharp';
 import exifr from 'exifr';
 import { createS3Client, getBucketName } from './r2client.js';
+import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
+import { createProgressDisplay } from './progress.js';
+import { withRetry } from './retry.js';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -11,6 +14,8 @@ const WEB_DIR = '.web';
 const WEB_WIDTH = 2048;
 const EXIF_CACHE_KEY = 'exif-cache.json';
 const EXIF_FETCH_BYTES = 131072; // 128KB — enough for EXIF in any JPEG
+const EXIF_CONCURRENCY = 8;
+const IMAGE_CONCURRENCY = 4;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,35 +109,68 @@ const parseExif = async (buffer) => {
   }
 };
 
-const processExif = async (client, bucketName, photoKeys, publicUrl, force) => {
+const processExif = async (client, bucketName, photoKeys, publicUrl, force, concurrency) => {
   console.log('\n── EXIF extraction ──────────────────────────────────────────');
   const cache = force ? {} : await loadJson(client, bucketName, EXIF_CACHE_KEY);
-  const cached = Object.keys(cache).length;
   const toProcess = photoKeys.filter(key => cache[key] === undefined);
 
   if (force) console.log(`--force: reprocessing all ${photoKeys.length} photos`);
-  else console.log(`Cache: ${cached} entries, ${toProcess.length} to process`);
+  else console.log(`Cache: ${Object.keys(cache).length} entries, ${toProcess.length} to process`);
 
-  let processed = 0;
-  for (const key of toProcess) {
-    process.stdout.write(`[${processed + 1}/${toProcess.length}] ${key} → `);
-    const buffer = await fetchExifChunk(publicUrl, key);
-    const exif = await parseExif(buffer);
-    cache[key] = exif;
-    console.log(`${exif.camera || 'unknown camera'}, ${exif.lens || 'unknown lens'}`);
-    processed++;
-
-    if (processed % 10 === 0) {
-      await saveJson(client, bucketName, EXIF_CACHE_KEY, cache);
-      console.log('  (cache saved)');
-    }
+  if (toProcess.length === 0) {
+    console.log('All photos cached, nothing to do.');
+    return;
   }
 
-  if (processed > 0) {
-    await saveJson(client, bucketName, EXIF_CACHE_KEY, cache);
-    console.log(`Saved cache (${Object.keys(cache).length} entries). Processed ${processed} new photos.`);
-  } else {
-    console.log('All photos cached, nothing to do.');
+  // saveJson serializes the whole cache object, so two overlapping saves can
+  // land out of order and drop entries. Chain them so only one is ever in flight.
+  let pendingSave = Promise.resolve();
+  const queueSave = () => {
+    pendingSave = pendingSave.then(() =>
+      withRetry(() => saveJson(client, bucketName, EXIF_CACHE_KEY, cache)));
+  };
+
+  const items = toProcess.map(key => ({ id: key, name: key, totalBytes: null }));
+  const display = createProgressDisplay({
+    label: `Extracting EXIF from ${items.length} photo(s)`,
+    items,
+  });
+
+  let done = 0;
+  let results;
+
+  try {
+    results = await mapWithConcurrency(items, concurrency, async (item) => {
+      display.startTask(item.id);
+
+      try {
+        const buffer = await withRetry(() => fetchExifChunk(publicUrl, item.id), {
+          onRetry: ({ attempt, attempts }) =>
+            display.noteTask(item.id, `retry ${attempt}/${attempts - 1}`),
+        });
+        cache[item.id] = await parseExif(buffer);
+      } catch (error) {
+        display.finishTask(item.id, { error });
+        throw error;
+      }
+
+      display.finishTask(item.id);
+      done += 1;
+      if (done % 10 === 0) queueSave();
+      return cache[item.id];
+    });
+  } finally {
+    display.stop();
+    await pendingSave;
+    await withRetry(() => saveJson(client, bucketName, EXIF_CACHE_KEY, cache));
+  }
+
+  const failures = results.filter(result => result.error);
+  console.log(`Saved cache (${Object.keys(cache).length} entries). Processed ${done} new photos.`);
+
+  if (failures.length > 0) {
+    console.error(`${failures.length} photo(s) failed EXIF extraction:`);
+    for (const failure of failures) console.error(`  ${failure.item.id}: ${failure.error.message}`);
   }
 };
 
@@ -147,11 +185,12 @@ const resizeTo = (width, quality) => (buffer) =>
 const makeThumbnail = resizeTo(THUMBNAIL_WIDTH, 80);
 const makeWebSized = resizeTo(WEB_WIDTH, 85);
 
-const processImages = async (client, bucketName, photoKeys, objects) => {
+const processImages = async (client, bucketName, photoKeys, objects, concurrency) => {
   console.log('\n── Image processing ─────────────────────────────────────────');
 
   const existingThumbnails = new Set(objects.map(o => o.Key).filter(k => k.includes(`/${THUMBNAIL_DIR}/`)));
   const existingWebPhotos = new Set(objects.map(o => o.Key).filter(k => k.includes(`/${WEB_DIR}/`)));
+  const sizeByKey = new Map(objects.map(o => [o.Key, o.Size]));
 
   const photosNeedingWork = photoKeys.filter(key =>
     !existingThumbnails.has(thumbnailKey(key)) || !existingWebPhotos.has(webKey(key))
@@ -162,29 +201,81 @@ const processImages = async (client, bucketName, photoKeys, objects) => {
     return;
   }
 
-  console.log(`Processing ${photosNeedingWork.length} photo(s)...`);
+  const items = photosNeedingWork.map(key => ({
+    id: key,
+    name: key,
+    totalBytes: sizeByKey.get(key) ?? null,
+  }));
 
-  for (const [i, key] of photosNeedingWork.entries()) {
-    process.stdout.write(`[${i + 1}/${photosNeedingWork.length}] ${key} ... `);
-    const original = await downloadObject(client, bucketName, key);
+  const display = createProgressDisplay({
+    label: `Processing ${items.length} photo(s)`,
+    items,
+  });
 
-    const needsThumbnail = !existingThumbnails.has(thumbnailKey(key));
-    const needsWeb = !existingWebPhotos.has(webKey(key));
+  let results;
 
-    await Promise.all([
-      needsThumbnail && makeThumbnail(original).then(buf => uploadObject(client, bucketName, thumbnailKey(key), buf)),
-      needsWeb && makeWebSized(original).then(buf => uploadObject(client, bucketName, webKey(key), buf)),
-    ].filter(Boolean));
+  try {
+    results = await mapWithConcurrency(items, concurrency, async (item) => {
+      display.startTask(item.id);
 
-    const labels = [needsThumbnail && 'thumbnail', needsWeb && 'web'].filter(Boolean).join(' + ');
-    console.log(`${labels} done`);
+      const onRetry = ({ attempt, attempts }) =>
+        display.noteTask(item.id, `retry ${attempt}/${attempts - 1}`);
+
+      try {
+        const original = await withRetry(
+          () => downloadObject(client, bucketName, item.id),
+          { onRetry },
+        );
+        display.updateTask(item.id, item.totalBytes ?? 0);
+
+        const needsThumbnail = !existingThumbnails.has(thumbnailKey(item.id));
+        const needsWeb = !existingWebPhotos.has(webKey(item.id));
+
+        display.noteTask(item.id, 'resizing');
+        const [thumbnail, web] = await Promise.all([
+          needsThumbnail ? makeThumbnail(original) : null,
+          needsWeb ? makeWebSized(original) : null,
+        ]);
+
+        display.noteTask(item.id, 'uploading');
+        await Promise.all([
+          thumbnail && withRetry(
+            () => uploadObject(client, bucketName, thumbnailKey(item.id), thumbnail),
+            { onRetry },
+          ),
+          web && withRetry(
+            () => uploadObject(client, bucketName, webKey(item.id), web),
+            { onRetry },
+          ),
+        ].filter(Boolean));
+      } catch (error) {
+        display.finishTask(item.id, { error });
+        throw error;
+      }
+
+      display.finishTask(item.id);
+    });
+  } finally {
+    display.stop();
+  }
+
+  const failures = results.filter(result => result.error);
+  console.log(`${results.length - failures.length}/${results.length} photo(s) processed.`);
+
+  if (failures.length > 0) {
+    console.error(`${failures.length} photo(s) failed:`);
+    for (const failure of failures) console.error(`  ${failure.item.id}: ${failure.error.message}`);
+    process.exitCode = 1;
   }
 };
 
 // ── main ──────────────────────────────────────────────────────────────────────
 
 const run = async () => {
-  const force = process.argv.includes('--force');
+  const args = process.argv.slice(2);
+  const force = args.includes('--force');
+  const { concurrency } = parseConcurrencyFlag(args.filter(arg => arg !== '--force'));
+
   const publicUrl = process.env.R2_PUBLIC_URL;
   if (!publicUrl) throw new Error('Missing R2_PUBLIC_URL in environment variables');
 
@@ -196,8 +287,8 @@ const run = async () => {
   const photoKeys = objects.map(o => o.Key).filter(isPhoto);
   console.log(`Found ${photoKeys.length} photos`);
 
-  await processExif(client, bucketName, photoKeys, publicUrl, force);
-  await processImages(client, bucketName, photoKeys, objects);
+  await processExif(client, bucketName, photoKeys, publicUrl, force, concurrency ?? EXIF_CONCURRENCY);
+  await processImages(client, bucketName, photoKeys, objects, concurrency ?? IMAGE_CONCURRENCY);
 
   console.log('\nAll done!');
 };

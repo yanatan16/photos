@@ -1,9 +1,12 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { readFileSync, existsSync } from 'fs';
+import { Upload } from '@aws-sdk/lib-storage';
+import { createReadStream, existsSync, statSync } from 'fs';
 import { basename, extname } from 'path';
-import dotenv from 'dotenv';
+import { createS3Client, getBucketName } from './r2client.js';
+import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
+import { createProgressDisplay } from './progress.js';
+import { withRetry } from './retry.js';
 
-dotenv.config();
+// ── constants ─────────────────────────────────────────────────────────────────
 
 const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.heic']);
 
@@ -17,104 +20,118 @@ const MIME_TYPES = {
   '.heic': 'image/heic',
 };
 
-const MAX_ATTEMPTS = 4;
+const DEFAULT_CONCURRENCY = 6;
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const USAGE = 'Usage: node scripts/upload-photos.js [--concurrency N] <folder> <file1> [file2 ...]';
 
-const withRetry = async (label, operation) => {
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (attempt === MAX_ATTEMPTS) throw error;
-      const backoffMs = 500 * 2 ** (attempt - 1);
-      console.warn(`  ! ${label} failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${error.message}`);
-      console.warn(`    retrying in ${backoffMs}ms...`);
-      await delay(backoffMs);
-    }
-  }
-};
+// ── argument handling ─────────────────────────────────────────────────────────
 
-const createS3Client = () => {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+export const parseArgs = (args) => {
+  const { concurrency, rest } = parseConcurrencyFlag(args);
+  if (rest.length < 2) throw new Error(USAGE);
 
-  if (!accountId || !accessKeyId || !secretAccessKey) {
-    throw new Error('Missing R2 credentials in environment variables');
-  }
-
-  return new S3Client({
-    region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-  });
-};
-
-const uploadFile = async (client, bucketName, folder, filePath) => {
-  const filename = basename(filePath);
-  const ext = extname(filename).toLowerCase();
-  const key = `${folder}/${filename}`;
-  const body = readFileSync(filePath);
-
-  await withRetry(`upload ${key}`, () => client.send(new PutObjectCommand({
-    Bucket: bucketName,
-    Key: key,
-    Body: body,
-    ContentType: MIME_TYPES[ext] ?? 'application/octet-stream',
-  })));
-
-  return key;
-};
-
-const parseArgs = (args) => {
-  if (args.length < 2) {
-    throw new Error('Usage: node scripts/upload-photos.js <folder> <file1> [file2 ...]');
-  }
-
-  const [folder, ...files] = args;
-  return { folder, files };
+  const [folder, ...files] = rest;
+  return { folder, files, concurrency: concurrency ?? DEFAULT_CONCURRENCY };
 };
 
 const validateFiles = (files) => {
-  const errors = [];
-
-  for (const file of files) {
-    if (!existsSync(file)) {
-      errors.push(`File not found: ${file}`);
-      continue;
-    }
+  const errors = files.flatMap((file) => {
+    if (!existsSync(file)) return [`File not found: ${file}`];
     const ext = extname(file).toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.has(ext)) {
-      errors.push(`Unsupported file type: ${file} (${ext})`);
-    }
-  }
+    return SUPPORTED_EXTENSIONS.has(ext) ? [] : [`Unsupported file type: ${file} (${ext})`];
+  });
 
-  if (errors.length > 0) {
-    throw new Error(errors.join('\n'));
-  }
+  if (errors.length > 0) throw new Error(errors.join('\n'));
 };
 
-const run = async () => {
-  const bucketName = process.env.R2_BUCKET_NAME;
-  if (!bucketName) throw new Error('Missing R2_BUCKET_NAME in environment variables');
+// ── upload ────────────────────────────────────────────────────────────────────
 
-  const { folder, files } = parseArgs(process.argv.slice(2));
+// The Upload — and its read stream — are built inside the retried closure on
+// purpose: a consumed stream cannot be replayed, so a retry that reused it
+// would upload a zero-byte object.
+const uploadFile = (client, bucketName, item, hooks) =>
+  withRetry(() => {
+    hooks.onAttemptStart();
+
+    const upload = new Upload({
+      client,
+      params: {
+        Bucket: bucketName,
+        Key: item.key,
+        Body: createReadStream(item.filePath),
+        ContentType: MIME_TYPES[extname(item.filePath).toLowerCase()] ?? 'application/octet-stream',
+      },
+    });
+
+    upload.on('httpUploadProgress', ({ loaded }) => hooks.onProgress(loaded ?? 0));
+    return upload.done();
+  }, { onRetry: hooks.onRetry });
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
+const run = async () => {
+  const { folder, files, concurrency } = parseArgs(process.argv.slice(2));
   validateFiles(files);
 
   const client = createS3Client();
+  const bucketName = getBucketName();
 
-  console.log(`Uploading ${files.length} file(s) to ${folder}/...`);
+  const items = files.map(filePath => ({
+    id: filePath,
+    filePath,
+    name: basename(filePath),
+    key: `${folder}/${basename(filePath)}`,
+    totalBytes: statSync(filePath).size,
+  }));
 
-  for (const file of files) {
-    const key = await uploadFile(client, bucketName, folder, file);
-    console.log(`  ✓ ${key}`);
+  const display = createProgressDisplay({
+    label: `Uploading ${items.length} photo(s) to ${folder}/`,
+    items,
+  });
+
+  let results;
+  try {
+    results = await mapWithConcurrency(items, concurrency, async (item) => {
+      display.startTask(item.id);
+
+      try {
+        await uploadFile(client, bucketName, item, {
+          onAttemptStart: () => display.updateTask(item.id, 0),
+          onProgress: (loaded) => display.updateTask(item.id, loaded),
+          onRetry: ({ attempt, attempts }) => {
+            display.updateTask(item.id, 0);
+            display.noteTask(item.id, `retry ${attempt}/${attempts - 1}`);
+          },
+        });
+      } catch (error) {
+        display.finishTask(item.id, { error });
+        throw error;
+      }
+
+      display.finishTask(item.id);
+      return item.key;
+    });
+  } finally {
+    display.stop();
   }
 
-  console.log('Done!');
+  const failures = results.filter(result => result.error);
+  console.log(`\n${results.length - failures.length}/${results.length} uploaded to ${folder}/`);
+
+  if (failures.length > 0) {
+    console.error('\nFailed:');
+    for (const failure of failures) {
+      console.error(`  ${failure.item.key}: ${failure.error.message}`);
+    }
+    process.exitCode = 1;
+  }
 };
 
-run().catch(error => {
-  console.error('Error:', error.message);
-  process.exit(1);
-});
+const isEntryPoint = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+
+if (isEntryPoint) {
+  run().catch(error => {
+    console.error('Error:', error.message);
+    process.exit(1);
+  });
+}

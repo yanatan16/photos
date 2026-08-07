@@ -1,5 +1,6 @@
 import { ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, getBucketName } from './r2client.js';
+import { formatBytes } from './format.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,13 +19,6 @@ const listPrefix = async (client, bucketName, prefix) => {
   return objects;
 };
 
-const formatSize = (bytes) => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-};
-
 // ── subcommands ───────────────────────────────────────────────────────────────
 
 const ls = async (client, bucketName, [prefix = '']) => {
@@ -37,7 +31,7 @@ const ls = async (client, bucketName, [prefix = '']) => {
 
   for (const obj of objects) {
     const date = obj.LastModified.toISOString().slice(0, 10).padEnd(10);
-    const size = formatSize(obj.Size).padStart(9);
+    const size = formatBytes(obj.Size).padStart(9);
     console.log(`${date}  ${size}  ${obj.Key}`);
   }
   console.log(`\n${objects.length} object${objects.length !== 1 ? 's' : ''}`);
