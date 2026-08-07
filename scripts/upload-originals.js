@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'fs';
+import { createReadStream, statSync } from 'fs';
 import { basename } from 'path';
 import { createS3Client, getBucketName } from './r2client.js';
 import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
@@ -6,7 +6,24 @@ import { createProgressDisplay } from './progress.js';
 import { uploadToR2, contentTypeFor } from './upload.js';
 import { createPendingQueue } from './pendingOriginals.js';
 
+// ── constants ─────────────────────────────────────────────────────────────────
+
 const DEFAULT_CONCURRENCY = 6;
+
+// ── filesystem ────────────────────────────────────────────────────────────────
+
+// One stat decides both existence and size. Checking them separately leaves a
+// window where a file can vanish between the two calls, and an ENOENT there
+// would throw out of the batch instead of being handled as a missing entry.
+const sizeOf = (path) => {
+  try {
+    return statSync(path).size;
+  } catch {
+    return null;
+  }
+};
+
+// ── main ──────────────────────────────────────────────────────────────────────
 
 const run = async () => {
   const { concurrency } = parseConcurrencyFlag(process.argv.slice(2));
@@ -18,8 +35,9 @@ const run = async () => {
     return;
   }
 
-  const missing = pending.filter(entry => !existsSync(entry.localPath));
-  const ready = pending.filter(entry => existsSync(entry.localPath));
+  const stated = pending.map(entry => ({ entry, size: sizeOf(entry.localPath) }));
+  const missing = stated.filter(({ size }) => size === null).map(({ entry }) => entry);
+  const ready = stated.filter(({ size }) => size !== null);
 
   // A moved or deleted original will never upload. Report it once and drop it
   // rather than re-reporting it on every future run.
@@ -36,12 +54,12 @@ const run = async () => {
   const client = createS3Client();
   const bucketName = getBucketName();
 
-  const items = ready.map(entry => ({
+  const items = ready.map(({ entry, size }) => ({
     id: entry.key,
     key: entry.key,
     localPath: entry.localPath,
     name: basename(entry.localPath),
-    totalBytes: statSync(entry.localPath).size,
+    totalBytes: size,
   }));
 
   const display = createProgressDisplay({
@@ -67,9 +85,16 @@ const run = async () => {
             display.noteTask(item.id, `retry ${attempt}/${attempts - 1}`);
           },
         });
+
         // Removed one at a time as each lands, so Ctrl-C leaves an accurate
         // manifest and a re-run resumes instead of restarting.
-        await queue.remove(item.key);
+        try {
+          await queue.remove(item.key);
+        } catch (error) {
+          // The upload itself succeeded — a failure here is the manifest write,
+          // not the transfer, and must not be reported as an upload failure.
+          throw new Error(`uploaded, but failed to update the queue: ${error.message}`);
+        }
       } catch (error) {
         display.finishTask(item.id, { error });
         throw error;
@@ -93,6 +118,8 @@ const run = async () => {
     process.exitCode = 1;
   }
 };
+
+// ── entry point ───────────────────────────────────────────────────────────────
 
 run().catch(error => {
   console.error('Error:', error.message);
