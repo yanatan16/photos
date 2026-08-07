@@ -100,7 +100,10 @@ test('logicalPhotoKeys ignores root files, hidden files, and non-images', () => 
   assert.deepEqual([...keys], ['2025-italy/a.jpg']);
 });
 
-test('logicalPhotoKeys accepts every extension the uploader supports', () => {
+// Deliberately broader than the uploader's SUPPORTED_EXTENSIONS (Task 5): this
+// discovers what is already in the bucket, including formats uploaded before
+// local resizing existed.
+test('logicalPhotoKeys accepts every image extension the bucket may contain', () => {
   const keys = logicalPhotoKeys([
     'a/p.jpg', 'a/p.jpeg', 'a/p.png', 'a/p.gif',
     'a/p.webp', 'a/p.avif', 'a/p.heic', 'a/p.heif', 'a/p.tif', 'a/p.tiff',
