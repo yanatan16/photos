@@ -78,10 +78,14 @@ const uploadPhoto = async (client, bucketName, item, hooks) => {
     },
   });
 
-  await Promise.all([
-    send('thumbnail', thumbnailKey(item.key), thumbnail),
-    send('web', webKey(item.key), web),
-  ]);
+  // Sequential, not Promise.all: `logicalPhotoKeys` (keys.js) treats a `.web/`
+  // key as proof the photo exists but deliberately does NOT treat a thumbnail
+  // alone as such (see `logicalPhotoKeys does not invent a photo from a
+  // thumbnail alone` in keys.test.js). Uploading the thumbnail first means a
+  // partial failure can only ever leave an invisible thumbnail orphan, never
+  // a half-published photo.
+  await send('thumbnail', thumbnailKey(item.key), thumbnail);
+  await send('web', webKey(item.key), web);
 };
 
 // ── main ──────────────────────────────────────────────────────────────────────

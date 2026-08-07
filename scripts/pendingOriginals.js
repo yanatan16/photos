@@ -35,12 +35,15 @@ export const createPendingQueue = ({ read = readFile, write = writeFile } = {}) 
   // start from the same snapshot and the second write loses the first entry.
   let pending = Promise.resolve();
   const mutate = (change) => {
-    pending = pending.then(() => {
+    const result = pending.then(() => {
       const next = change(load());
       write(JSON.stringify(next, null, 2));
       return next;
     });
-    return pending;
+    // Keep the chain alive after a failure: a rejected `pending` would make
+    // every later add/remove reject with the same stale error.
+    pending = result.catch(() => {});
+    return result;
   };
 
   return {

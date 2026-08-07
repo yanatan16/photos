@@ -82,3 +82,21 @@ test('createPendingQueue treats a malformed manifest as empty', () => {
   const { read, write } = fakeFile('}{ broken');
   assert.deepEqual(createPendingQueue({ read, write }).load(), []);
 });
+
+test('createPendingQueue recovers after a write failure instead of poisoning later calls', async () => {
+  const { file, read, write } = fakeFile();
+  let failNext = true;
+  const flakyWrite = (text) => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('ENOSPC');
+    }
+    write(text);
+  };
+  const queue = createPendingQueue({ read, write: flakyWrite });
+
+  await assert.rejects(() => queue.add(entry('a.jpg')), /ENOSPC/);
+  await queue.add(entry('b.jpg'));
+
+  assert.deepEqual(JSON.parse(file.text), [entry('b.jpg')]);
+});
