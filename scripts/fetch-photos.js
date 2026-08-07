@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { buildFavorites } from './favorites.js';
 import { photoLensFields } from './lensOverrides.js';
-import { thumbnailKey, webKey } from './keys.js';
+import { thumbnailKey, webKey, logicalPhotoKeys } from './keys.js';
 
 dotenv.config();
 
@@ -79,29 +79,19 @@ const loadJson = async (client, bucketName, key, fallback = {}) => {
   }
 };
 
-const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOverrides) => {
-  const existingThumbnails = new Set(
-    objects.map(o => o.Key).filter(key => key.includes('/.thumbnails/'))
-  );
-  const existingWebPhotos = new Set(
-    objects.map(o => o.Key).filter(key => key.includes('/.web/'))
-  );
+export const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOverrides) => {
+  const presentKeys = new Set(objects.map(o => o.Key));
+  const modifiedByKey = new Map(objects.map(o => [o.Key, o.LastModified]));
+
+  // Sorted so albums keep the lexicographic photo order the bucket listing used
+  // to give them — album.photos[0] is the default cover and the album date.
+  const photoKeys = [...logicalPhotoKeys(objects.map(o => o.Key))].sort();
 
   const albumMap = new Map();
 
-  objects.forEach(obj => {
-    const key = obj.Key;
-
-    if (!key.includes('/')) {
-      return;
-    }
-
+  photoKeys.forEach(key => {
     const [albumSlug, ...filenameParts] = key.split('/');
     const filename = filenameParts.join('/');
-
-    if (!filename || filename.startsWith('.')) {
-      return;
-    }
 
     if (!albumMap.has(albumSlug)) {
       albumMap.set(albumSlug, {
@@ -113,23 +103,27 @@ const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOverrides)
     }
 
     const thumbKey = thumbnailKey(key);
-    const thumbnail = existingThumbnails.has(thumbKey)
-      ? buildPhotoUrl(publicUrl, thumbKey)
-      : buildPhotoUrl(publicUrl, key);
-
     const wKey = webKey(key);
-    const web = existingWebPhotos.has(wKey)
-      ? buildPhotoUrl(publicUrl, wKey)
-      : buildPhotoUrl(publicUrl, key);
+
+    // The original may not be uploaded yet, so fall back through the derivatives
+    // rather than assuming it is there.
+    const displayKey = presentKeys.has(key) ? key : wKey;
+    const thumbnail = buildPhotoUrl(publicUrl, presentKeys.has(thumbKey) ? thumbKey : displayKey);
+    const web = buildPhotoUrl(publicUrl, presentKeys.has(wKey) ? wKey : displayKey);
+
+    const modified = modifiedByKey.get(key) ?? modifiedByKey.get(wKey) ?? null;
 
     const exif = exifCache[key] || {};
     const album = albumMap.get(albumSlug);
     album.photos.push({
+      // Stays the original's URL even before that object exists: favorites.json,
+      // album-covers.json, and lens-overrides.json are all keyed off it, and
+      // PhotoGrid uses it only as identity.
       url: buildPhotoUrl(publicUrl, key),
       thumbnail,
       web,
       filename,
-      date: exif.dateTaken || (obj.LastModified ? obj.LastModified.toISOString() : null),
+      date: exif.dateTaken || (modified ? modified.toISOString() : null),
       camera: exif.camera || null,
       aperture: exif.aperture || null,
       shutter: exif.shutter || null,
@@ -207,7 +201,11 @@ const generateMetadata = async () => {
   console.log('Done!');
 };
 
-generateMetadata().catch(error => {
-  console.error('Error generating metadata:', error);
-  process.exit(1);
-});
+const isEntryPoint = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+
+if (isEntryPoint) {
+  generateMetadata().catch(error => {
+    console.error('Error generating metadata:', error);
+    process.exit(1);
+  });
+}
