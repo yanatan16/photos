@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs } from './upload-photos.js';
+import { parseArgs, validateFiles } from './upload-photos.js';
+
+// ── parseArgs (unchanged behaviour) ───────────────────────────────────────────
 
 test('parseArgs splits the folder from the files', () => {
   assert.deepEqual(parseArgs(['iceland-2026', 'a.jpg', 'b.jpg']), {
@@ -23,4 +25,21 @@ test('parseArgs rejects a missing folder or file list', () => {
 
 test('parseArgs rejects an invalid concurrency', () => {
   assert.throws(() => parseArgs(['--concurrency', '0', 'album', 'a.jpg']), /positive integer/);
+});
+
+// ── validateFiles ─────────────────────────────────────────────────────────────
+
+test('validateFiles reports a missing file', () => {
+  assert.throws(() => validateFiles(['/nope/missing.jpg']), /File not found: \/nope\/missing\.jpg/);
+});
+
+test('validateFiles rejects heic with an actionable message', () => {
+  assert.throws(
+    () => validateFiles(['/nope/photo.heic']),
+    /cannot be resized locally.*[Cc]onvert/s,
+  );
+});
+
+test('validateFiles reports an unsupported extension', () => {
+  assert.throws(() => validateFiles(['/nope/notes.txt']), /Unsupported file type/);
 });
