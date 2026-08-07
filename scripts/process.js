@@ -1,39 +1,20 @@
 import { ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import sharp from 'sharp';
 import exifr from 'exifr';
 import { createS3Client, getBucketName } from './r2client.js';
 import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
 import { createProgressDisplay } from './progress.js';
 import { withRetry } from './retry.js';
+import { thumbnailKey, webKey, logicalPhotoKeys } from './keys.js';
+import { makeThumbnail, makeWebSized } from './derivatives.js';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const THUMBNAIL_DIR = '.thumbnails';
-const THUMBNAIL_WIDTH = 600;
-const WEB_DIR = '.web';
-const WEB_WIDTH = 2048;
 const EXIF_CACHE_KEY = 'exif-cache.json';
 const EXIF_FETCH_BYTES = 131072; // 128KB — enough for EXIF in any JPEG
 const EXIF_CONCURRENCY = 8;
 const IMAGE_CONCURRENCY = 4;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-const isPhoto = (key) => {
-  if (!key.includes('/')) return false;
-  if (key.includes(`/${THUMBNAIL_DIR}/`) || key.includes(`/${WEB_DIR}/`)) return false;
-  const filename = key.split('/').pop();
-  return !filename.startsWith('.') && /\.(jpe?g|png|gif|webp|avif|heic|heif|tiff?)$/i.test(filename);
-};
-
-const derivedKey = (dir) => (key) => {
-  const parts = key.split('/');
-  const filename = parts.pop();
-  return [...parts, dir, filename].join('/');
-};
-
-const thumbnailKey = derivedKey(THUMBNAIL_DIR);
-const webKey = derivedKey(WEB_DIR);
 
 const listAllObjects = async (client, bucketName) => {
   const objects = [];
@@ -109,7 +90,7 @@ const parseExif = async (buffer) => {
   }
 };
 
-const processExif = async (client, bucketName, photoKeys, publicUrl, force, concurrency) => {
+const processExif = async (client, bucketName, photoKeys, publicUrl, force, concurrency, exifSourceKey) => {
   console.log('\n── EXIF extraction ──────────────────────────────────────────');
   const cache = force ? {} : await loadJson(client, bucketName, EXIF_CACHE_KEY);
   const toProcess = photoKeys.filter(key => cache[key] === undefined);
@@ -144,7 +125,7 @@ const processExif = async (client, bucketName, photoKeys, publicUrl, force, conc
       display.startTask(item.id);
 
       try {
-        const buffer = await withRetry(() => fetchExifChunk(publicUrl, item.id), {
+        const buffer = await withRetry(() => fetchExifChunk(publicUrl, exifSourceKey(item.id)), {
           onRetry: ({ attempt, attempts }) =>
             display.noteTask(item.id, `retry ${attempt}/${attempts - 1}`),
         });
@@ -176,24 +157,19 @@ const processExif = async (client, bucketName, photoKeys, publicUrl, force, conc
 
 // ── image resizing ────────────────────────────────────────────────────────────
 
-const resizeTo = (width, quality) => (buffer) =>
-  sharp(buffer)
-    .resize({ width, withoutEnlargement: true })
-    .jpeg({ quality })
-    .toBuffer();
-
-const makeThumbnail = resizeTo(THUMBNAIL_WIDTH, 80);
-const makeWebSized = resizeTo(WEB_WIDTH, 85);
-
 const processImages = async (client, bucketName, photoKeys, objects, concurrency) => {
   console.log('\n── Image processing ─────────────────────────────────────────');
 
-  const existingThumbnails = new Set(objects.map(o => o.Key).filter(k => k.includes(`/${THUMBNAIL_DIR}/`)));
-  const existingWebPhotos = new Set(objects.map(o => o.Key).filter(k => k.includes(`/${WEB_DIR}/`)));
+  const presentKeys = new Set(objects.map(o => o.Key));
   const sizeByKey = new Map(objects.map(o => [o.Key, o.Size]));
 
+  // Only photos whose original is actually in the bucket can be processed here —
+  // this phase downloads the original to resize it. A photo whose original is
+  // still queued locally already arrived with both derivatives, so it has
+  // nothing to do; including it would just fail with NoSuchKey every run.
   const photosNeedingWork = photoKeys.filter(key =>
-    !existingThumbnails.has(thumbnailKey(key)) || !existingWebPhotos.has(webKey(key))
+    presentKeys.has(key) &&
+    (!presentKeys.has(thumbnailKey(key)) || !presentKeys.has(webKey(key)))
   );
 
   if (photosNeedingWork.length === 0) {
@@ -228,8 +204,8 @@ const processImages = async (client, bucketName, photoKeys, objects, concurrency
         );
         display.updateTask(item.id, item.totalBytes ?? 0);
 
-        const needsThumbnail = !existingThumbnails.has(thumbnailKey(item.id));
-        const needsWeb = !existingWebPhotos.has(webKey(item.id));
+        const needsThumbnail = !presentKeys.has(thumbnailKey(item.id));
+        const needsWeb = !presentKeys.has(webKey(item.id));
 
         display.noteTask(item.id, 'resizing');
         const [thumbnail, web] = await Promise.all([
@@ -284,10 +260,18 @@ const run = async () => {
 
   console.log('Listing objects...');
   const objects = await listAllObjects(client, bucketName);
-  const photoKeys = objects.map(o => o.Key).filter(isPhoto);
+  const presentKeys = new Set(objects.map(o => o.Key));
+  const photoKeys = [...logicalPhotoKeys(objects.map(o => o.Key))].sort();
   console.log(`Found ${photoKeys.length} photos`);
 
-  await processExif(client, bucketName, photoKeys, publicUrl, force, concurrency ?? EXIF_CONCURRENCY);
+  // The original is the richer source, so prefer it. When it is still queued
+  // locally, the web derivative carries the EXIF that keepMetadata() kept.
+  const exifSourceKey = (key) => (presentKeys.has(key) ? key : webKey(key));
+
+  await processExif(
+    client, bucketName, photoKeys, publicUrl, force,
+    concurrency ?? EXIF_CONCURRENCY, exifSourceKey,
+  );
   await processImages(client, bucketName, photoKeys, objects, concurrency ?? IMAGE_CONCURRENCY);
 
   console.log('\nAll done!');
