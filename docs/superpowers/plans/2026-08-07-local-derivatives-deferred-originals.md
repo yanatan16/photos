@@ -12,6 +12,7 @@
 
 - **ESM only** — every file uses `import`/`export`, never `require`. `package.json` has `"type": "module"`.
 - **Tests** are `node --test`, colocated as `scripts/<name>.test.js`, using `node:test` and `node:assert/strict`. No test framework, no mocking library.
+- **Run the whole suite with `npm test`**, never `node --test scripts/` — on Node 22 that resolves `scripts` as a module path and dies with `MODULE_NOT_FOUND` before running anything. A single file is fine: `node --test scripts/keys.test.js`. Baseline at the start of this plan is **65 passing**.
 - **Tests must not touch the network, R2, or the filesystem.** Inject `read`/`write`/`stream`/`clock` rather than reaching for the real thing. Generating an in-memory image with `sharp({ create: ... })` is fine — it is pure computation.
 - **Style matches the existing repo:** arrow-function consts, named exports, `// ── section ──` banner comments, 2-space indent, semicolons.
 - **No new dependencies.** `sharp`, `exifr`, and both AWS SDK packages are already installed.
@@ -465,7 +466,7 @@ In the returned object, add `setTaskTotal` next to `updateTask`:
 
 - [ ] **Step 4: Run the full suite to verify nothing regressed**
 
-Run: `node --test scripts/`
+Run: `npm test`
 Expected: PASS. The pre-existing `renderDisplay` tests must still pass untouched — they pass `bytesTotal` in explicitly and that path is unchanged.
 
 - [ ] **Step 5: Commit**
@@ -1082,7 +1083,7 @@ Expected: prints `No originals pending.` and exits 0 (assuming no manifest exist
 
 - [ ] **Step 4: Run the full suite**
 
-Run: `node --test scripts/`
+Run: `npm test`
 Expected: PASS — nothing here should have disturbed existing tests.
 
 - [ ] **Step 5: Commit**
@@ -1264,7 +1265,7 @@ This is the regression check that matters: an unchanged bucket must produce no w
 
 - [ ] **Step 6: Run the full suite**
 
-Run: `node --test scripts/`
+Run: `npm test`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -1494,7 +1495,7 @@ Expected: `IDENTICAL`. The bucket has not changed, so the generated metadata mus
 
 - [ ] **Step 6: Run the full suite**
 
-Run: `node --test scripts/`
+Run: `npm test`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -1584,7 +1585,7 @@ npm run build:photos
 
 - [ ] **Step 9: Final full-suite run**
 
-Run: `node --test scripts/`
+Run: `npm test`
 Expected: PASS.
 
 - [ ] **Step 10: Update the docs**
