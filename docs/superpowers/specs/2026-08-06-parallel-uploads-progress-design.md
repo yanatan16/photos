@@ -83,14 +83,19 @@ notices display.
 **Effectful shell:**
 
 ```js
-export const createProgressDisplay = ({ label, total, stream = process.stdout }) => ({
-  startTask(id, { name, totalBytes }),
+export const createProgressDisplay = ({ label, items, stream = process.stdout }) => ({
+  startTask(id),
   updateTask(id, loadedBytes),
   noteTask(id, note),          // retry notices render into the bar
   finishTask(id, { error }),
+  counts(),                    // { completed, failed }
   stop(),
 });
 ```
+
+`items` is `[{ id, name, totalBytes }]`, the full work list up front. Both call
+sites already know it, and having it lets the display render queued rows and a
+correct `bytesTotal` instead of discovering the total as it goes.
 
 Repaints on a 100ms timer rather than on every event, so a burst of
 `httpUploadProgress` callbacks cannot thrash the terminal. Each repaint moves the
