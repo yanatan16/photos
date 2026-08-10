@@ -1,3 +1,5 @@
+import { byDateDescending } from './dates.js';
+
 export const favoriteKey = (albumSlug, filename) => `${albumSlug}/${filename}`;
 
 export const albumSlugFromKey = (key) => key.split('/')[0];
@@ -21,9 +23,5 @@ export const buildFavorites = (albums, favoriteKeys) => {
     )
     .filter(({ key }) => favoriteSet.has(key))
     .map(({ photo }) => photo)
-    .sort((a, b) => {
-      const da = a.date ? new Date(a.date) : new Date(0);
-      const db = b.date ? new Date(b.date) : new Date(0);
-      return db - da;
-    });
+    .sort((a, b) => byDateDescending(a.date, b.date));
 };

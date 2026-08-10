@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { buildFavorites } from './favorites.js';
 import { photoLensFields } from './lensOverrides.js';
 import { thumbnailKey, webKey, logicalPhotoKeys } from './keys.js';
+import { byDateAscending, byDateDescending } from './dates.js';
 
 dotenv.config();
 
@@ -83,8 +84,9 @@ export const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOve
   const presentKeys = new Set(objects.map(o => o.Key));
   const modifiedByKey = new Map(objects.map(o => [o.Key, o.LastModified]));
 
-  // Sorted so albums keep the lexicographic photo order the bucket listing used
-  // to give them — album.photos[0] is the default cover and the album date.
+  // Sorted lexicographically here only so that photos taken at the same instant
+  // — two cameras, or a burst — keep a stable, reproducible order once the
+  // chronological sort below runs.
   const photoKeys = [...logicalPhotoKeys(objects.map(o => o.Key))].sort();
 
   const albumMap = new Map();
@@ -134,23 +136,24 @@ export const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOve
 
   return Array.from(albumMap.values())
     .map(album => {
+      // Chronological, so an album shot on two cameras reads as one timeline
+      // instead of one run per camera. album.photos[0] is the default cover
+      // and the album date, so both follow the earliest photo.
+      const photos = [...album.photos].sort((a, b) => byDateAscending(a.date, b.date));
       const coverFilename = albumCovers[album.id];
       const coverPhoto = coverFilename
-        ? album.photos.find(p => p.filename === coverFilename) ?? album.photos[0]
-        : album.photos[0];
+        ? photos.find(p => p.filename === coverFilename) ?? photos[0]
+        : photos[0];
       return {
         ...album,
+        photos,
         cover: coverPhoto?.thumbnail ?? null,
-        firstPhotoDate: album.photos.length > 0 ? album.photos[0].date : null,
-        cameras: [...new Set(album.photos.map(p => p.camera).filter(Boolean))],
-        lenses: [...new Set(album.photos.map(p => p.lens).filter(Boolean))],
+        firstPhotoDate: photos.length > 0 ? photos[0].date : null,
+        cameras: [...new Set(photos.map(p => p.camera).filter(Boolean))],
+        lenses: [...new Set(photos.map(p => p.lens).filter(Boolean))],
       };
     })
-    .sort((a, b) => {
-      const da = a.firstPhotoDate ? new Date(a.firstPhotoDate) : new Date(0);
-      const db = b.firstPhotoDate ? new Date(b.firstPhotoDate) : new Date(0);
-      return db - da;
-    });
+    .sort((a, b) => byDateDescending(a.firstPhotoDate, b.firstPhotoDate));
 };
 
 const generateMetadata = async () => {

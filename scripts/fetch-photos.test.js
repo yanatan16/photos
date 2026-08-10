@@ -66,6 +66,38 @@ test('parseObjects ignores root files and non-images', () => {
   assert.equal(albums[0].photos.length, 1);
 });
 
+test('parseObjects orders photos within an album by time, not by filename', () => {
+  const [album] = parse([
+    object('2026-italy/DSCF0001.jpg'),
+    object('2026-italy/IMG_0001.jpg'),
+    object('2026-italy/IMG_0002.jpg'),
+  ], {
+    exif: {
+      '2026-italy/DSCF0001.jpg': { dateTaken: '2026-05-01T12:00:00.000Z' },
+      '2026-italy/IMG_0001.jpg': { dateTaken: '2026-05-01T09:00:00.000Z' },
+      '2026-italy/IMG_0002.jpg': { dateTaken: '2026-05-01T15:00:00.000Z' },
+    },
+  });
+
+  assert.deepEqual(
+    album.photos.map(photo => photo.filename),
+    ['IMG_0001.jpg', 'DSCF0001.jpg', 'IMG_0002.jpg']
+  );
+  // The album date and default cover follow the earliest photo, not the
+  // lexicographically first filename.
+  assert.equal(album.firstPhotoDate, '2026-05-01T09:00:00.000Z');
+  assert.equal(album.cover, `${PUBLIC}/2026-italy/IMG_0001.jpg`);
+});
+
+test('parseObjects sorts undated photos to the end of an album', () => {
+  const [album] = parse([
+    object('2026-italy/a.jpg', null),
+    object('2026-italy/b.jpg', new Date('2026-05-01T09:00:00Z')),
+  ]);
+
+  assert.deepEqual(album.photos.map(photo => photo.filename), ['b.jpg', 'a.jpg']);
+});
+
 test('parseObjects sorts albums newest first and honours a configured cover', () => {
   const albums = parse([
     object('2025-japan/z.jpg', new Date('2025-05-01T00:00:00Z')),
