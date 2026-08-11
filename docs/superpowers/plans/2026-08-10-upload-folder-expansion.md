@@ -358,7 +358,29 @@ test('expandPaths handles a mixed list of files and directories', () => {
 test('expandPaths contributes nothing for an empty directory', () => {
   assert.deepEqual(expandPaths([fixture({})]), []);
 });
+
+test('expandPaths surfaces a stat failure that is not ENOENT', () => {
+  const root = fixture({ dirs: ['locked'] });
+  chmodSync(join(root, 'locked'), 0o000);
+
+  try {
+    // A path under an unsearchable directory fails with EACCES, not ENOENT.
+    // Reporting that as "File not found" would send you looking in the wrong
+    // place, so it must escape rather than be swallowed.
+    assert.throws(() => expandPaths([join(root, 'locked', 'a.jpg')]), { code: 'EACCES' });
+  } finally {
+    chmodSync(join(root, 'locked'), 0o755);
+  }
+});
 ```
+
+That last test needs `chmodSync` in the `fs` import at the top of the test file:
+
+```js
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
+```
+
+It is skipped when running as root, where mode bits do not deny access. If the suite is ever run in a container as root, guard it with `if (process.getuid?.() === 0) return;` as the first line.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -378,11 +400,16 @@ import { join } from 'path';
 // A missing path is deliberately not an error here. It flows through as an
 // explicit entry so partitionCandidates reports "File not found" with the rest
 // of the validation, instead of a raw fs error escaping mid-expansion.
+//
+// Only ENOENT gets that treatment. A permission error or a broken symlink
+// means the path exists and something else is wrong, and reporting those as
+// "File not found" sends you looking in the wrong place.
 const isDirectory = (path) => {
   try {
     return statSync(path).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
   }
 };
 
@@ -412,7 +439,7 @@ export const expandPaths = (paths) => paths.flatMap((path) => {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test scripts/candidates.test.js`
-Expected: PASS — 7 tests
+Expected: PASS — 8 tests
 
 - [ ] **Step 5: Commit**
 
@@ -580,7 +607,7 @@ import { SUPPORTED_EXTENSIONS } from './upload.js';
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test scripts/candidates.test.js`
-Expected: PASS — 15 tests
+Expected: PASS — 16 tests
 
 - [ ] **Step 5: Commit**
 
@@ -661,7 +688,7 @@ export const needsUpload = (presentKeys, key) =>
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test scripts/candidates.test.js`
-Expected: PASS — 20 tests
+Expected: PASS — 21 tests
 
 - [ ] **Step 5: Commit**
 
@@ -775,7 +802,7 @@ A `Set` per key, not a count: the same path listed twice is one photo named two 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test scripts/candidates.test.js`
-Expected: PASS — 24 tests
+Expected: PASS — 25 tests
 
 - [ ] **Step 5: Commit**
 
