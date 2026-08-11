@@ -79,17 +79,17 @@ const uploadPhoto = async (client, bucketName, item, hooks) => {
 
 // ── selection ─────────────────────────────────────────────────────────────────
 
-// Which candidates R2 does not already have. `--force` skips the listing
-// entirely rather than listing and ignoring the result — the filter is the
-// listing's only consumer.
-const selectPending = async (client, bucketName, folder, candidates, force) => {
+// Which candidates R2 does not already have (or has queued locally). `--force`
+// skips the listing entirely rather than listing and ignoring the result —
+// the filter is the listing's only consumer.
+const selectPending = async (client, bucketName, folder, candidates, queuedKeys, force) => {
   if (force) {
     console.log(`--force: uploading all ${candidates.length} photo(s)`);
     return candidates;
   }
 
   const presentKeys = await listAlbumKeys(client, bucketName, folder);
-  const pending = candidates.filter(candidate => needsUpload(presentKeys, candidate.key));
+  const pending = candidates.filter(candidate => needsUpload(presentKeys, queuedKeys, candidate.key));
 
   console.log(`${candidates.length - pending.length} already uploaded — skipping.`);
   return pending;
@@ -100,8 +100,12 @@ const selectPending = async (client, bucketName, folder, candidates, force) => {
 const run = async () => {
   const { folder, paths, concurrency, force } = parseArgs(process.argv.slice(2));
 
-  const { files, skipped } = partitionCandidates(expandPaths(paths));
+  const { files: foundFiles, skipped } = partitionCandidates(expandPaths(paths));
   for (const note of skipped) console.warn(`Skipped: ${note}`);
+
+  // `upload album dir dir/a.jpg` names the same file two ways; dedupe so it's
+  // read, resized, and uploaded once instead of twice.
+  const files = [...new Set(foundFiles)];
 
   const candidates = files.map(filePath => ({
     filePath,
@@ -113,20 +117,23 @@ const run = async () => {
   console.log(`${candidates.length} photo(s) found.`);
 
   if (candidates.length === 0) {
-    console.log('Nothing to upload.');
+    console.log('No photos found.');
     return;
   }
 
   const client = createS3Client();
   const bucketName = getBucketName();
 
-  const pending = await selectPending(client, bucketName, folder, candidates, force);
+  // Built up front — a local file read with no network cost — so selectPending
+  // can treat a queued original as accounted-for even though it hasn't hit R2.
+  const queue = createPendingQueue();
+  const queuedKeys = new Set(queue.load().map(entry => entry.key));
+
+  const pending = await selectPending(client, bucketName, folder, candidates, queuedKeys, force);
   if (pending.length === 0) {
-    console.log('Nothing to upload.');
+    console.log('Everything is already uploaded.');
     return;
   }
-
-  const queue = createPendingQueue();
 
   const items = pending.map(candidate => ({
     id: candidate.filePath,

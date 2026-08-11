@@ -47,8 +47,11 @@ export const expandPaths = (paths) => paths.flatMap((path) => {
 
 const UNDECODABLE_EXTENSIONS = new Set(['.heic', '.heif']);
 
-// Checked in this order so the HEIC hint wins over the generic
-// "unsupported type" message for a file that is genuinely a photo.
+// Checked in this order so the HEIC hint wins over "not found", and "not
+// found" wins over the generic "unsupported type": a mistyped folder or
+// filename is the likeliest slip against this feature's headline capability
+// (pointing at a whole folder), so a missing path must be reported as missing
+// rather than as an extension problem it doesn't actually have.
 const problemWith = (filePath) => {
   const ext = extname(filePath).toLowerCase();
 
@@ -56,8 +59,8 @@ const problemWith = (filePath) => {
     return `${filePath} cannot be resized locally (${ext} decoding is unavailable). ` +
            `Convert it to JPEG first, e.g. \`sips -s format jpeg "${filePath}" --out "${filePath.replace(/\.[^.]+$/, '.jpg')}"\`.`;
   }
-  if (!SUPPORTED_EXTENSIONS.has(ext)) return `Unsupported file type: ${filePath} (${ext})`;
   if (!existsSync(filePath)) return `File not found: ${filePath}`;
+  if (!SUPPORTED_EXTENSIONS.has(ext)) return `Unsupported file type: ${filePath} (${ext})`;
   return null;
 };
 
@@ -85,12 +88,23 @@ export const partitionCandidates = (entries) => {
 
 // ── already-uploaded check ────────────────────────────────────────────────────
 
-// Both derivatives, not just `.web/`. `logicalPhotoKeys` treats a web copy
-// alone as proof a photo exists, which is right for *display* — but an upload
-// that died between the thumbnail send and the web send should be redone, so
-// the bar for skipping work is higher than the bar for showing a photo.
-export const needsUpload = (presentKeys, key) =>
-  !presentKeys.has(thumbnailKey(key)) || !presentKeys.has(webKey(key));
+// Both derivatives AND the original accounted for. `logicalPhotoKeys` treats
+// a web copy alone as proof a photo exists, which is right for *display* —
+// but an upload that died between the thumbnail send and the web send should
+// be redone, so the bar for skipping work is higher than the bar for showing
+// a photo.
+//
+// The original is "accounted for" if it is already sitting in R2 *or* it is
+// still in the local pending queue. Both derivatives land before the queue
+// write (see uploadPhoto in upload-photos.js), so a run interrupted between
+// the web upload landing and the queue write leaves both derivatives present
+// with the original in neither place — that must count as needing upload, or
+// the original is orphaned forever: the next run sees complete derivatives,
+// reports "already uploaded", and never queues or uploads the original.
+export const needsUpload = (presentKeys, queuedKeys, key) =>
+  !presentKeys.has(thumbnailKey(key)) ||
+  !presentKeys.has(webKey(key)) ||
+  !(presentKeys.has(key) || queuedKeys.has(key));
 
 // ── collisions ────────────────────────────────────────────────────────────────
 

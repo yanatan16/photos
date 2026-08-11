@@ -113,10 +113,26 @@ test('partitionCandidates throws for a named heic with an actionable message', (
   );
 });
 
-test('partitionCandidates throws for a named unsupported extension', () => {
+test('partitionCandidates throws "Unsupported file type" for a named file that exists with an unsupported extension', () => {
+  const root = fixture({ files: ['notes.txt'] });
+
+  assert.throws(
+    () => partitionCandidates([named(join(root, 'notes.txt'))]),
+    /Unsupported file type/,
+  );
+});
+
+test('partitionCandidates throws "File not found" for a named path that does not exist, even with a normal extension', () => {
   assert.throws(
     () => partitionCandidates([named('/nope/notes.txt')]),
-    /Unsupported file type/,
+    /File not found: \/nope\/notes\.txt/,
+  );
+});
+
+test('partitionCandidates throws "File not found" for a nonexistent extensionless path — a mistyped folder must not be misreported as an unsupported type', () => {
+  assert.throws(
+    () => partitionCandidates([named('/nope/Exort')]),
+    /File not found: \/nope\/Exort/,
   );
 });
 
@@ -165,26 +181,38 @@ test('partitionCandidates handles a whole real folder end to end', () => {
 const KEY = '2026-italy/a.jpg';
 const THUMBNAIL = '2026-italy/.thumbnails/a.jpg';
 const WEB = '2026-italy/.web/a.jpg';
+const NONE = new Set();
 
-test('needsUpload is false when both derivatives are present', () => {
-  assert.equal(needsUpload(new Set([THUMBNAIL, WEB]), KEY), false);
+test('needsUpload is false when both derivatives are present and the original is in R2', () => {
+  assert.equal(needsUpload(new Set([THUMBNAIL, WEB, KEY]), NONE, KEY), false);
 });
 
-test('needsUpload is true when only the thumbnail is present', () => {
+test('needsUpload is false when both derivatives are present and the original is only in the pending queue', () => {
+  assert.equal(needsUpload(new Set([THUMBNAIL, WEB]), new Set([KEY]), KEY), false);
+});
+
+// Regression test: an interrupted run can leave both derivatives in R2 with
+// the original in neither R2 nor the queue (killed between the web upload
+// landing and the queue write). The old two-part rule (derivatives only)
+// called this "already uploaded" and orphaned the original forever.
+test('needsUpload is true when both derivatives are present but the original is in neither R2 nor the queue', () => {
+  assert.equal(needsUpload(new Set([THUMBNAIL, WEB]), NONE, KEY), true);
+});
+
+test('needsUpload is true when only the thumbnail is present, regardless of the queue', () => {
   // A run that died between the two sends is redone, not left half-published.
-  assert.equal(needsUpload(new Set([THUMBNAIL]), KEY), true);
+  assert.equal(needsUpload(new Set([THUMBNAIL]), NONE, KEY), true);
+  assert.equal(needsUpload(new Set([THUMBNAIL]), new Set([KEY]), KEY), true);
 });
 
-test('needsUpload is true when only the web derivative is present', () => {
-  assert.equal(needsUpload(new Set([WEB]), KEY), true);
+test('needsUpload is true when only the web derivative is present, regardless of the queue', () => {
+  assert.equal(needsUpload(new Set([WEB]), NONE, KEY), true);
+  assert.equal(needsUpload(new Set([WEB]), new Set([KEY]), KEY), true);
 });
 
-test('needsUpload is true when neither derivative is present', () => {
-  assert.equal(needsUpload(new Set(), KEY), true);
-});
-
-test('needsUpload ignores the original — derivatives are what the site serves', () => {
-  assert.equal(needsUpload(new Set([KEY]), KEY), true);
+test('needsUpload is true when neither derivative is present, regardless of the queue', () => {
+  assert.equal(needsUpload(NONE, NONE, KEY), true);
+  assert.equal(needsUpload(NONE, new Set([KEY]), KEY), true);
 });
 
 // ── assertNoKeyCollisions ─────────────────────────────────────────────────────
