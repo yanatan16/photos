@@ -1,6 +1,7 @@
-import { ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import exifr from 'exifr';
 import { createS3Client, getBucketName } from './r2client.js';
+import { listAllObjects } from './r2list.js';
 import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
 import { createProgressDisplay } from './progress.js';
 import { withRetry } from './retry.js';
@@ -15,20 +16,6 @@ const EXIF_CONCURRENCY = 8;
 const IMAGE_CONCURRENCY = 4;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-const listAllObjects = async (client, bucketName) => {
-  const objects = [];
-  let continuationToken;
-  do {
-    const response = await client.send(new ListObjectsV2Command({
-      Bucket: bucketName,
-      ContinuationToken: continuationToken,
-    }));
-    if (response.Contents) objects.push(...response.Contents);
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-  return objects;
-};
 
 const downloadObject = async (client, bucketName, key) => {
   const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
