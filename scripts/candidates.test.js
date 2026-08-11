@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { expandPaths } from './candidates.js';
+import { expandPaths, partitionCandidates } from './candidates.js';
 
 // Real files on disk: expandPaths asks the filesystem what a path is, and
 // partitionCandidates (Task 3) asks whether it exists. Stubbing fs would test
@@ -81,4 +81,81 @@ test('expandPaths surfaces a stat failure that is not ENOENT', () => {
   } finally {
     chmodSync(join(root, 'locked'), 0o755);
   }
+});
+
+// ── partitionCandidates ───────────────────────────────────────────────────────
+
+const named = (filePath) => ({ filePath, explicit: true });
+const found = (filePath) => ({ filePath, explicit: false });
+
+test('partitionCandidates accepts a supported image either way', () => {
+  const root = fixture({ files: ['a.jpg', 'b.png'] });
+  const { files, skipped } = partitionCandidates([
+    named(join(root, 'a.jpg')),
+    found(join(root, 'b.png')),
+  ]);
+
+  assert.deepEqual(files, [join(root, 'a.jpg'), join(root, 'b.png')]);
+  assert.deepEqual(skipped, []);
+});
+
+test('partitionCandidates throws for a named file that is missing', () => {
+  assert.throws(
+    () => partitionCandidates([named('/nope/missing.jpg')]),
+    /File not found: \/nope\/missing\.jpg/,
+  );
+});
+
+test('partitionCandidates throws for a named heic with an actionable message', () => {
+  assert.throws(
+    () => partitionCandidates([named('/nope/photo.heic')]),
+    /cannot be resized locally.*[Cc]onvert/s,
+  );
+});
+
+test('partitionCandidates throws for a named unsupported extension', () => {
+  assert.throws(
+    () => partitionCandidates([named('/nope/notes.txt')]),
+    /Unsupported file type/,
+  );
+});
+
+test('partitionCandidates joins every named-file error into one message', () => {
+  assert.throws(
+    () => partitionCandidates([named('/nope/a.txt'), named('/nope/b.txt')]),
+    /a\.txt[\s\S]*b\.txt/,
+  );
+});
+
+test('partitionCandidates reports a found heic as skipped instead of failing', () => {
+  const root = fixture({ files: ['a.jpg'] });
+  const { files, skipped } = partitionCandidates([
+    found(join(root, 'a.jpg')),
+    found(join(root, 'shot.heic')),
+  ]);
+
+  // One HEIC in the folder must not block the other 200 photos.
+  assert.deepEqual(files, [join(root, 'a.jpg')]);
+  assert.equal(skipped.length, 1);
+  assert.match(skipped[0], /shot\.heic.*cannot be resized locally/s);
+});
+
+test('partitionCandidates drops other found non-images silently', () => {
+  const root = fixture({ files: ['a.jpg'] });
+  const { files, skipped } = partitionCandidates([
+    found(join(root, 'a.jpg')),
+    found(join(root, 'a.xmp')),
+    found(join(root, 'a.cr2')),
+  ]);
+
+  assert.deepEqual(files, [join(root, 'a.jpg')]);
+  assert.deepEqual(skipped, []);
+});
+
+test('partitionCandidates handles a whole real folder end to end', () => {
+  const root = fixture({ files: ['a.jpg', 'b.jpeg', 'notes.txt', '.DS_Store'] });
+  const { files, skipped } = partitionCandidates(expandPaths([root]));
+
+  assert.deepEqual(files, [join(root, 'a.jpg'), join(root, 'b.jpeg')]);
+  assert.deepEqual(skipped, []);
 });
