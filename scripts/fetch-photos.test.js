@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseObjects } from './fetch-photos.js';
+import { parseObjects, albumSummary } from './fetch-photos.js';
 
 const PUBLIC = 'https://cdn.test';
 
@@ -107,4 +107,18 @@ test('parseObjects sorts albums newest first and honours a configured cover', ()
 
   assert.deepEqual(albums.map(album => album.id), ['2026-italy', '2025-japan']);
   assert.equal(albums[1].cover, `${PUBLIC}/2025-japan/z.jpg`);
+});
+
+test('albumSummary keeps only what the blog homepage renders', () => {
+  const albums = parse([
+    object('2026-italy/a.jpg', new Date('2026-01-01T00:00:00Z')),
+    object('2026-italy/b.jpg', new Date('2026-01-02T00:00:00Z')),
+  ]);
+
+  assert.deepEqual(albumSummary(albums), [{
+    id: '2026-italy',
+    name: 'Italy',
+    count: 2,
+    cover: `${PUBLIC}/2026-italy/a.jpg`,
+  }]);
 });

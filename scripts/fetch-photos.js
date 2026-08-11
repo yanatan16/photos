@@ -135,6 +135,12 @@ export const parseObjects = (objects, publicUrl, exifCache, albumCovers, lensOve
     .sort((a, b) => byDateDescending(a.firstPhotoDate, b.firstPhotoDate));
 };
 
+// The blog (joneisen.me) renders its homepage album covers from this summary.
+// Publishing it with the site keeps the blog off both R2 and this repo's
+// gitignored photos.json — it just fetches /photos/albums.json.
+export const albumSummary = (albums) =>
+  albums.map(({ id, name, cover, photos }) => ({ id, name, count: photos.length, cover }));
+
 const generateMetadata = async () => {
   const bucketName = process.env.R2_BUCKET_NAME;
   const publicUrl = process.env.R2_PUBLIC_URL;
@@ -180,6 +186,13 @@ const generateMetadata = async () => {
   writeFileSync(outputPath, JSON.stringify(metadata, null, 2));
 
   console.log(`Metadata written to ${outputPath}`);
+
+  // public/ is copied verbatim into dist/, so this lands at /photos/albums.json.
+  const summaryPath = join(__dirname, '..', 'public', 'albums.json');
+  mkdirSync(dirname(summaryPath), { recursive: true });
+  writeFileSync(summaryPath, JSON.stringify({ albums: albumSummary(albums) }, null, 2));
+
+  console.log(`Album summary written to ${summaryPath}`);
   console.log('Done!');
 };
 
