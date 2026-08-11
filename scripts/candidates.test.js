@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { expandPaths } from './candidates.js';
@@ -65,4 +65,20 @@ test('expandPaths handles a mixed list of files and directories', () => {
 
 test('expandPaths contributes nothing for an empty directory', () => {
   assert.deepEqual(expandPaths([fixture({})]), []);
+});
+
+test('expandPaths surfaces a stat failure that is not ENOENT', () => {
+  if (process.getuid?.() === 0) return;
+
+  const root = fixture({ dirs: ['locked'] });
+  chmodSync(join(root, 'locked'), 0o000);
+
+  try {
+    // A path under an unsearchable directory fails with EACCES, not ENOENT.
+    // Reporting that as "File not found" would send you looking in the wrong
+    // place, so it must escape rather than be swallowed.
+    assert.throws(() => expandPaths([join(root, 'locked', 'a.jpg')]), { code: 'EACCES' });
+  } finally {
+    chmodSync(join(root, 'locked'), 0o755);
+  }
 });

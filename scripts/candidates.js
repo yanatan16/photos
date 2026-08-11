@@ -6,11 +6,16 @@ import { join } from 'path';
 // A missing path is deliberately not an error here. It flows through as an
 // explicit entry so partitionCandidates reports "File not found" with the rest
 // of the validation, instead of a raw fs error escaping mid-expansion.
+//
+// Only ENOENT gets that treatment. A permission error or a broken symlink
+// means the path exists and something else is wrong, and reporting those as
+// "File not found" sends you looking in the wrong place.
 const isDirectory = (path) => {
   try {
     return statSync(path).isDirectory();
-  } catch {
-    return false;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
   }
 };
 
