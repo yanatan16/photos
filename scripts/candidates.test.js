@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { expandPaths, partitionCandidates, needsUpload } from './candidates.js';
+import { expandPaths, partitionCandidates, needsUpload, assertNoKeyCollisions } from './candidates.js';
 
 // Real files on disk: expandPaths asks the filesystem what a path is, and
 // partitionCandidates (Task 3) asks whether it exists. Stubbing fs would test
@@ -185,4 +185,46 @@ test('needsUpload is true when neither derivative is present', () => {
 
 test('needsUpload ignores the original — derivatives are what the site serves', () => {
   assert.equal(needsUpload(new Set([KEY]), KEY), true);
+});
+
+// ── assertNoKeyCollisions ─────────────────────────────────────────────────────
+
+const candidate = (filePath, key) => ({ filePath, key });
+
+test('assertNoKeyCollisions passes when every key is distinct', () => {
+  assert.doesNotThrow(() => assertNoKeyCollisions([
+    candidate('/trip/day1/a.jpg', 'trip/a.jpg'),
+    candidate('/trip/day2/b.jpg', 'trip/b.jpg'),
+  ]));
+});
+
+test('assertNoKeyCollisions throws naming both colliding files', () => {
+  assert.throws(
+    () => assertNoKeyCollisions([
+      candidate('/trip/day1/IMG_0001.jpg', 'trip/IMG_0001.jpg'),
+      candidate('/trip/day2/IMG_0001.jpg', 'trip/IMG_0001.jpg'),
+    ]),
+    /trip\/IMG_0001\.jpg[\s\S]*day1[\s\S]*day2/,
+  );
+});
+
+test('assertNoKeyCollisions reports every colliding group at once', () => {
+  assert.throws(
+    () => assertNoKeyCollisions([
+      candidate('/a/one.jpg', 'trip/one.jpg'),
+      candidate('/b/one.jpg', 'trip/one.jpg'),
+      candidate('/a/two.jpg', 'trip/two.jpg'),
+      candidate('/b/two.jpg', 'trip/two.jpg'),
+    ]),
+    /one\.jpg[\s\S]*two\.jpg/,
+  );
+});
+
+test('assertNoKeyCollisions accepts the same file listed twice', () => {
+  // `upload album dir dir/a.jpg` names one file two ways. Same bytes, same
+  // destination — nothing is lost, so it is not a collision.
+  assert.doesNotThrow(() => assertNoKeyCollisions([
+    candidate('/trip/a.jpg', 'trip/a.jpg'),
+    candidate('/trip/a.jpg', 'trip/a.jpg'),
+  ]));
 });

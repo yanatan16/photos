@@ -91,3 +91,30 @@ export const partitionCandidates = (entries) => {
 // the bar for skipping work is higher than the bar for showing a photo.
 export const needsUpload = (presentKeys, key) =>
   !presentKeys.has(thumbnailKey(key)) || !presentKeys.has(webKey(key));
+
+// ── collisions ────────────────────────────────────────────────────────────────
+
+// The R2 key comes from the basename, so two directories holding the same
+// filename both claim one key and the second upload silently destroys the
+// first. Worse, the next run then sees the key as present and reports both
+// photos as already uploaded. Refuse the whole batch instead.
+export const assertNoKeyCollisions = (candidates) => {
+  const pathsByKey = new Map();
+  for (const { filePath, key } of candidates) {
+    const paths = pathsByKey.get(key) ?? new Set();
+    paths.add(filePath);
+    pathsByKey.set(key, paths);
+  }
+
+  const collisions = [...pathsByKey]
+    .filter(([, paths]) => paths.size > 1)
+    .map(([key, paths]) => `  ${key} ← ${[...paths].join(', ')}`);
+
+  if (collisions.length > 0) {
+    throw new Error(
+      `${collisions.length} filename collision(s) — these would overwrite each other in R2:\n` +
+      `${collisions.join('\n')}\n` +
+      'Rename the files or upload the folders to separate albums.'
+    );
+  }
+};
