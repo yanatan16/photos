@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { expandPaths, partitionCandidates } from './candidates.js';
+import { expandPaths, partitionCandidates, needsUpload } from './candidates.js';
 
 // Real files on disk: expandPaths asks the filesystem what a path is, and
 // partitionCandidates (Task 3) asks whether it exists. Stubbing fs would test
@@ -158,4 +158,31 @@ test('partitionCandidates handles a whole real folder end to end', () => {
 
   assert.deepEqual(files, [join(root, 'a.jpg'), join(root, 'b.jpeg')]);
   assert.deepEqual(skipped, []);
+});
+
+// ── needsUpload ───────────────────────────────────────────────────────────────
+
+const KEY = '2026-italy/a.jpg';
+const THUMBNAIL = '2026-italy/.thumbnails/a.jpg';
+const WEB = '2026-italy/.web/a.jpg';
+
+test('needsUpload is false when both derivatives are present', () => {
+  assert.equal(needsUpload(new Set([THUMBNAIL, WEB]), KEY), false);
+});
+
+test('needsUpload is true when only the thumbnail is present', () => {
+  // A run that died between the two sends is redone, not left half-published.
+  assert.equal(needsUpload(new Set([THUMBNAIL]), KEY), true);
+});
+
+test('needsUpload is true when only the web derivative is present', () => {
+  assert.equal(needsUpload(new Set([WEB]), KEY), true);
+});
+
+test('needsUpload is true when neither derivative is present', () => {
+  assert.equal(needsUpload(new Set(), KEY), true);
+});
+
+test('needsUpload ignores the original — derivatives are what the site serves', () => {
+  assert.equal(needsUpload(new Set([KEY]), KEY), true);
 });

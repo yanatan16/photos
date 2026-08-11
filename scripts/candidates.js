@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs';
 import { extname, join } from 'path';
 import { SUPPORTED_EXTENSIONS } from './upload.js';
+import { thumbnailKey, webKey } from './keys.js';
 
 // ── path expansion ────────────────────────────────────────────────────────────
 
@@ -81,3 +82,12 @@ export const partitionCandidates = (entries) => {
   if (errors.length > 0) throw new Error(errors.join('\n'));
   return { files, skipped };
 };
+
+// ── already-uploaded check ────────────────────────────────────────────────────
+
+// Both derivatives, not just `.web/`. `logicalPhotoKeys` treats a web copy
+// alone as proof a photo exists, which is right for *display* — but an upload
+// that died between the thumbnail send and the web send should be redone, so
+// the bar for skipping work is higher than the bar for showing a photo.
+export const needsUpload = (presentKeys, key) =>
+  !presentKeys.has(thumbnailKey(key)) || !presentKeys.has(webKey(key));
