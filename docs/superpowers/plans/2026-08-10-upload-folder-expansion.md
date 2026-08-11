@@ -35,7 +35,7 @@ One in-scope addition the spec does not mention: the private lister is duplicate
 **Create:**
 - `scripts/r2list.js` — paginated bucket listing. `listAllObjects(client, bucketName, prefix?)`, `listAlbumKeys(client, bucketName, album)`.
 - `scripts/r2list.test.js`
-- `scripts/candidates.js` — `expandPaths`, `partitionCandidates`, `needsUpload`.
+- `scripts/candidates.js` — `expandPaths`, `partitionCandidates`, `needsUpload`, `assertNoKeyCollisions`.
 - `scripts/candidates.test.js`
 
 **Modify:**
@@ -427,7 +427,7 @@ git commit -m "Expand a directory argument into the photos inside it"
 
 A file the user named is a file the user wants, so a problem with it is an error. A file the script found inside a directory is just something that was in the folder, so a problem with it is not the user's mistake. This is what lets you point at a real export folder full of `.xmp` sidecars and RAW files.
 
-`validateFiles` in `upload-photos.js` stays in place for now — Task 6 deletes it once `run()` is rewired. A brief duplicate is the cost of keeping both tasks independently testable.
+`validateFiles` in `upload-photos.js` stays in place for now — Task 7 deletes it once `run()` is rewired. A brief duplicate is the cost of keeping both tasks independently testable.
 
 **Files:**
 - Modify: `scripts/candidates.js`
@@ -672,7 +672,121 @@ git commit -m "Skip photos that already have both derivatives in R2"
 
 ---
 
-### Task 5: `parseArgs` learns `--force` and speaks in paths
+### Task 5: `assertNoKeyCollisions` — two local files, one R2 key
+
+`album/IMG_0001.jpg` is derived from a file's basename, so `~/Trip/day1/IMG_0001.jpg` and `~/Trip/day2/IMG_0001.jpg` both claim it and the second silently overwrites the first. Passing two directories makes that easy to hit by accident, and the already-uploaded check compounds it: after the overwrite, a re-run reports both photos as "already uploaded". Fail before any bytes move.
+
+**Files:**
+- Modify: `scripts/candidates.js`
+- Modify: `scripts/candidates.test.js`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks — it takes the `{filePath, key}` candidate objects that Task 7's `run()` builds.
+- Produces: `assertNoKeyCollisions(candidates: Array<{filePath: string, key: string}>) => void`. Throws `Error` naming every colliding group; returns nothing on success.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `scripts/candidates.test.js`, extending the import to `import { expandPaths, partitionCandidates, needsUpload, assertNoKeyCollisions } from './candidates.js';`:
+
+```js
+// ── assertNoKeyCollisions ─────────────────────────────────────────────────────
+
+const candidate = (filePath, key) => ({ filePath, key });
+
+test('assertNoKeyCollisions passes when every key is distinct', () => {
+  assert.doesNotThrow(() => assertNoKeyCollisions([
+    candidate('/trip/day1/a.jpg', 'trip/a.jpg'),
+    candidate('/trip/day2/b.jpg', 'trip/b.jpg'),
+  ]));
+});
+
+test('assertNoKeyCollisions throws naming both colliding files', () => {
+  assert.throws(
+    () => assertNoKeyCollisions([
+      candidate('/trip/day1/IMG_0001.jpg', 'trip/IMG_0001.jpg'),
+      candidate('/trip/day2/IMG_0001.jpg', 'trip/IMG_0001.jpg'),
+    ]),
+    /trip\/IMG_0001\.jpg[\s\S]*day1[\s\S]*day2/,
+  );
+});
+
+test('assertNoKeyCollisions reports every colliding group at once', () => {
+  assert.throws(
+    () => assertNoKeyCollisions([
+      candidate('/a/one.jpg', 'trip/one.jpg'),
+      candidate('/b/one.jpg', 'trip/one.jpg'),
+      candidate('/a/two.jpg', 'trip/two.jpg'),
+      candidate('/b/two.jpg', 'trip/two.jpg'),
+    ]),
+    /one\.jpg[\s\S]*two\.jpg/,
+  );
+});
+
+test('assertNoKeyCollisions accepts the same file listed twice', () => {
+  // `upload album dir dir/a.jpg` names one file two ways. Same bytes, same
+  // destination — nothing is lost, so it is not a collision.
+  assert.doesNotThrow(() => assertNoKeyCollisions([
+    candidate('/trip/a.jpg', 'trip/a.jpg'),
+    candidate('/trip/a.jpg', 'trip/a.jpg'),
+  ]));
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `node --test scripts/candidates.test.js`
+Expected: FAIL — `The requested module './candidates.js' does not provide an export named 'assertNoKeyCollisions'`
+
+- [ ] **Step 3: Write minimal implementation**
+
+Append to `scripts/candidates.js`:
+
+```js
+// ── collisions ────────────────────────────────────────────────────────────────
+
+// The R2 key comes from the basename, so two directories holding the same
+// filename both claim one key and the second upload silently destroys the
+// first. Worse, the next run then sees the key as present and reports both
+// photos as already uploaded. Refuse the whole batch instead.
+export const assertNoKeyCollisions = (candidates) => {
+  const pathsByKey = new Map();
+  for (const { filePath, key } of candidates) {
+    const paths = pathsByKey.get(key) ?? new Set();
+    paths.add(filePath);
+    pathsByKey.set(key, paths);
+  }
+
+  const collisions = [...pathsByKey]
+    .filter(([, paths]) => paths.size > 1)
+    .map(([key, paths]) => `  ${key} ← ${[...paths].join(', ')}`);
+
+  if (collisions.length > 0) {
+    throw new Error(
+      `${collisions.length} filename collision(s) — these would overwrite each other in R2:\n` +
+      `${collisions.join('\n')}\n` +
+      'Rename the files or upload the folders to separate albums.'
+    );
+  }
+};
+```
+
+A `Set` per key, not a count: the same path listed twice is one photo named two ways, not a collision.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `node --test scripts/candidates.test.js`
+Expected: PASS — 24 tests
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/candidates.js scripts/candidates.test.js
+git commit -m "Refuse a batch where two local files claim one R2 key"
+```
+
+---
+
+### Task 6: `parseArgs` learns `--force` and speaks in paths
 
 **Files:**
 - Modify: `scripts/upload-photos.js:18-28`, `scripts/upload-photos.js:93-109`
@@ -680,7 +794,7 @@ git commit -m "Skip photos that already have both derivatives in R2"
 
 **Interfaces:**
 - Consumes: `parseConcurrencyFlag` from `scripts/concurrency.js` (existing, unchanged).
-- Produces: `parseArgs(args: string[]) => {folder: string, paths: string[], concurrency: number, force: boolean}`. Note `paths`, not `files` — Task 6 relies on that name.
+- Produces: `parseArgs(args: string[]) => {folder: string, paths: string[], concurrency: number, force: boolean}`. Note `paths`, not `files` — Task 7 relies on that name.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -767,7 +881,7 @@ export const parseArgs = (args) => {
 
 `--force` is stripped before `parseConcurrencyFlag` so it cannot be mistaken for the flag's value, matching how `process.js:253-254` handles the same pair.
 
-In `run()`, update only the destructuring and the two lines that referenced `files`, so the script keeps working until Task 6 rewires it properly:
+In `run()`, update only the destructuring and the two lines that referenced `files`, so the script keeps working until Task 7 rewires it properly:
 
 ```js
   const { folder, paths, concurrency } = parseArgs(process.argv.slice(2));
@@ -792,7 +906,7 @@ git commit -m "Add --force and rename the file list to paths"
 
 ---
 
-### Task 6: Wire the pipeline into `run()`
+### Task 7: Wire the pipeline into `run()`
 
 The final task: `run()` expands paths, filters against R2, reports what it skipped, and hands the remainder to the existing upload loop unchanged.
 
@@ -801,7 +915,7 @@ The final task: `run()` expands paths, filters against R2, reports what it skipp
 - Modify: `CLAUDE.md:6`
 
 **Interfaces:**
-- Consumes: `listAlbumKeys` (Task 1), `expandPaths` / `partitionCandidates` / `needsUpload` (Tasks 2-4), `parseArgs` returning `{folder, paths, concurrency, force}` (Task 5).
+- Consumes: `listAlbumKeys` (Task 1), `expandPaths` / `partitionCandidates` / `needsUpload` / `assertNoKeyCollisions` (Tasks 2-5), `parseArgs` returning `{folder, paths, concurrency, force}` (Task 6).
 - Produces: nothing — this is the entry point.
 
 - [ ] **Step 1: Replace the imports and delete the moved code**
@@ -810,7 +924,12 @@ In `scripts/upload-photos.js`, add two imports after the `pendingOriginals.js` i
 
 ```js
 import { listAlbumKeys } from './r2list.js';
-import { expandPaths, partitionCandidates, needsUpload } from './candidates.js';
+import {
+  expandPaths,
+  partitionCandidates,
+  needsUpload,
+  assertNoKeyCollisions,
+} from './candidates.js';
 ```
 
 Then delete, in this order:
@@ -863,6 +982,9 @@ const run = async () => {
     filePath,
     key: `${folder}/${basename(filePath)}`,
   }));
+  // Before any network work: two files claiming one key would overwrite each
+  // other, and the second run would then call both of them already uploaded.
+  assertNoKeyCollisions(candidates);
   console.log(`${candidates.length} photo(s) found.`);
 
   if (candidates.length === 0) {
@@ -978,6 +1100,13 @@ node scripts/upload-photos.js zz-scratch /tmp/upload-check/does-not-exist.jpg
 ```
 Expected: `Error: File not found: /tmp/upload-check/does-not-exist.jpg`, exit 1.
 
+```bash
+mkdir -p /tmp/upload-check-2
+cp /tmp/upload-check/*.jpg /tmp/upload-check-2/
+node scripts/upload-photos.js zz-scratch /tmp/upload-check /tmp/upload-check-2
+```
+Expected: `Error: 3 filename collision(s)` listing each key and both source paths, exit 1, nothing uploaded. Then `rm -rf /tmp/upload-check-2`.
+
 Then clean up. `r2 rm` takes one key at a time; `r2 ls` prints `date size key`, so take the last field of the lines that name a key:
 
 ```bash
@@ -1017,5 +1146,6 @@ git commit -m "Upload a folder, skipping photos already in R2"
 - [ ] `--force` re-uploads a fully-uploaded folder.
 - [ ] A `.xmp`/`.DS_Store`/RAW file in the folder is ignored silently; a `.heic` is reported and skipped without failing.
 - [ ] Naming a missing or unsupported file directly still errors and exits 1.
+- [ ] Two folders holding the same filename error before anything uploads.
 - [ ] `grep -rn "ListObjectsV2Command" scripts/` shows one occurrence, in `r2list.js`.
 - [ ] `grep -rn "validateFiles\|listPrefix" scripts/` returns nothing.
