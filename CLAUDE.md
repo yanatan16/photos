@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev              # Start local dev server (Vite)
-npm run upload           # <folder> <files...> — resize locally, upload derivatives, queue originals
+npm run upload           # <album> <paths...> — files or folders; skips photos already in R2 (--force to re-upload)
 npm run upload:originals # Drain queued full-size originals (run on fast wifi)
 npm run process          # Backfill derivatives/EXIF for photos already in R2
 npm run build:photos     # Fetch photo metadata from R2 → src/data/photos.json

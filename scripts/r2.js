@@ -1,29 +1,13 @@
-import { ListObjectsV2Command, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createS3Client, getBucketName } from './r2client.js';
 import { formatBytes } from './format.js';
 import { createPendingQueue, pendingEntriesUnder } from './pendingOriginals.js';
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-const listPrefix = async (client, bucketName, prefix) => {
-  const objects = [];
-  let continuationToken;
-  do {
-    const response = await client.send(new ListObjectsV2Command({
-      Bucket: bucketName,
-      Prefix: prefix || undefined,
-      ContinuationToken: continuationToken,
-    }));
-    if (response.Contents) objects.push(...response.Contents);
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-  return objects;
-};
+import { listAllObjects } from './r2list.js';
 
 // ── subcommands ───────────────────────────────────────────────────────────────
 
 const ls = async (client, bucketName, [prefix = '']) => {
-  const objects = await listPrefix(client, bucketName, prefix);
+  const objects = await listAllObjects(client, bucketName, prefix);
 
   if (objects.length === 0) {
     console.log('(no objects found)');
@@ -63,7 +47,7 @@ const mv = async (client, bucketName, [src, dest]) => {
     await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: srcKey }));
   };
 
-  const albumObjects = await listPrefix(client, bucketName, `${src}/`);
+  const albumObjects = await listAllObjects(client, bucketName, `${src}/`);
 
   if (albumObjects.length > 0) {
     console.log(`Renaming album "${src}" → "${dest}" (${albumObjects.length} objects)`);
@@ -84,7 +68,7 @@ const mv = async (client, bucketName, [src, dest]) => {
 const rm = async (client, bucketName, [key]) => {
   if (!key) throw new Error('Usage: r2 rm <key>');
 
-  const albumObjects = await listPrefix(client, bucketName, `${key}/`);
+  const albumObjects = await listAllObjects(client, bucketName, `${key}/`);
 
   if (albumObjects.length > 0) {
     console.log(`Removing album "${key}" (${albumObjects.length} objects)`);

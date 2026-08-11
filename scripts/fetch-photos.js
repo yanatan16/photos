@@ -1,4 +1,4 @@
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { buildFavorites } from './favorites.js';
 import { photoLensFields } from './lensOverrides.js';
 import { thumbnailKey, webKey, logicalPhotoKeys } from './keys.js';
+import { listAllObjects } from './r2list.js';
 import { byDateAscending, byDateDescending } from './dates.js';
 
 dotenv.config();
@@ -30,28 +31,6 @@ const createS3Client = () => {
       secretAccessKey,
     },
   });
-};
-
-const listAllObjects = async (client, bucketName) => {
-  const objects = [];
-  let continuationToken = undefined;
-
-  do {
-    const command = new ListObjectsV2Command({
-      Bucket: bucketName,
-      ContinuationToken: continuationToken,
-    });
-
-    const response = await client.send(command);
-
-    if (response.Contents) {
-      objects.push(...response.Contents);
-    }
-
-    continuationToken = response.NextContinuationToken;
-  } while (continuationToken);
-
-  return objects;
 };
 
 const extractYearFromSlug = (slug) => {
