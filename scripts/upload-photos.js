@@ -15,16 +15,17 @@ const UNDECODABLE_EXTENSIONS = new Set(['.heic', '.heif']);
 
 const DEFAULT_CONCURRENCY = 6;
 
-const USAGE = 'Usage: node scripts/upload-photos.js [--concurrency N] <folder> <file1> [file2 ...]';
+const USAGE = 'Usage: node scripts/upload-photos.js [--concurrency N] [--force] <album> <path1> [path2 ...]';
 
 // ── argument handling ─────────────────────────────────────────────────────────
 
 export const parseArgs = (args) => {
-  const { concurrency, rest } = parseConcurrencyFlag(args);
+  const force = args.includes('--force');
+  const { concurrency, rest } = parseConcurrencyFlag(args.filter(arg => arg !== '--force'));
   if (rest.length < 2) throw new Error(USAGE);
 
-  const [folder, ...files] = rest;
-  return { folder, files, concurrency: concurrency ?? DEFAULT_CONCURRENCY };
+  const [folder, ...paths] = rest;
+  return { folder, paths, concurrency: concurrency ?? DEFAULT_CONCURRENCY, force };
 };
 
 export const validateFiles = (files) => {
@@ -91,14 +92,14 @@ const uploadPhoto = async (client, bucketName, item, hooks) => {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 const run = async () => {
-  const { folder, files, concurrency } = parseArgs(process.argv.slice(2));
-  validateFiles(files);
+  const { folder, paths, concurrency } = parseArgs(process.argv.slice(2));
+  validateFiles(paths);
 
   const client = createS3Client();
   const bucketName = getBucketName();
   const queue = createPendingQueue();
 
-  const items = files.map(filePath => ({
+  const items = paths.map(filePath => ({
     id: filePath,
     filePath,
     name: basename(filePath),
