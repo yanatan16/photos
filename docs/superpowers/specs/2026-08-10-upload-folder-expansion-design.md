@@ -66,7 +66,7 @@ argv ──→ parseArgs ──→ { album, paths, concurrency, force }
               listAlbumKeys(client, bucket, album)   one prefixed R2 sweep
                             │
                             ▼
-            files.filter(f => force || needsUpload(presentKeys, key))
+      files.filter(f => force || needsUpload(presentKeys, queuedKeys, key))
                             │
                             ▼
                   existing upload loop (unchanged)
@@ -119,14 +119,30 @@ One paginated `ListObjectsV2` sweep with `Prefix: \`${album}/\``.
 shared module (`scripts/r2list.js`) gaining an optional prefix parameter, and
 `process.js` imports it instead of defining its own. One lister, not two.
 
-### `needsUpload(presentKeys, key)` → `boolean`
+### `needsUpload(presentKeys, queuedKeys, key)` → `boolean`
 
-`true` unless **both** `thumbnailKey(key)` and `webKey(key)` are present in
-`presentKeys`.
+`false` — meaning skip — only when all three hold:
 
-Requiring both — rather than treating `.web/` alone as proof, the way
-`logicalPhotoKeys` does — means a run that died between the thumbnail send and
-the web send gets redone rather than left half-published.
+- `thumbnailKey(key)` is in `presentKeys`
+- `webKey(key)` is in `presentKeys`
+- `key` itself is in `presentKeys` **or** in `queuedKeys`
+
+Requiring both derivatives — rather than treating `.web/` alone as proof, the
+way `logicalPhotoKeys` does — means a run that died between the thumbnail send
+and the web send gets redone rather than left half-published.
+
+Requiring the original to be *accounted for* closes a worse hole. The upload
+worker sends the thumbnail, sends the web copy, then writes the queue entry.
+An interrupt in the gap between the last two leaves both derivatives in R2 with
+no queue entry — and a derivatives-only skip rule would then report that photo
+as already uploaded on every future run, so its original would never be queued
+and never uploaded. Silently, permanently, with a dead full-size link on the
+site. At `--concurrency 6` there are up to six photos in that gap at any moment,
+so this is the likely interruption outcome rather than a hairline race.
+
+"Accounted for" means present in R2 or still queued locally, so the rule costs
+no extra network work: the album prefix sweep already returns the original's
+key, and the queue is a local file.
 
 ## Output
 
@@ -164,11 +180,17 @@ without contacting R2 further.
 
 ## Known Consequences
 
-The skip rule reads derivatives only. If both derivatives are in R2 but the
-original was never uploaded *and* `.pending-originals.json` was lost, a re-run
-will skip that photo and the original will never be queued. Auto-re-queueing
-was considered and dropped as YAGNI: the pending queue and `upload:originals`
-already own that concern, and `--force` re-queues if it is ever needed.
+If `.pending-originals.json` is deleted outright while its originals are still
+undrained, those photos no longer look accounted for, so a re-run re-uploads
+their derivatives in order to re-queue the originals. That is wasted bandwidth
+on a slow link, and it is the deliberate trade: the alternative — treating a
+missing queue entry as "nothing to do" — is what silently orphaned originals
+after an interrupted run.
+
+The queue is per-machine local state. Uploading an album from a second laptop
+sees an empty queue, so photos whose originals are still queued on the first
+laptop look unaccounted-for and their derivatives get re-uploaded. Multi-machine
+coordination was a non-goal of the deferred-originals design and stays one here.
 
 ## Testing
 
@@ -179,8 +201,9 @@ TDD. Extending `scripts/upload-photos.test.js`:
   nonexistent path.
 - `partitionCandidates` — pure, over synthetic entries: every cell of the table
   above.
-- `needsUpload` — pure: both derivatives present, thumbnail only, web only,
-  neither.
+- `needsUpload` — pure: both derivatives present with the original in R2, with
+  the original only queued, and with the original in neither (the
+  interrupted-run regression case); plus thumbnail only, web only, neither.
 - `parseArgs` — `--force` present, absent, and in any position; the existing
   concurrency and usage tests stay green unchanged.
 
