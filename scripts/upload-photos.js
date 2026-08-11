@@ -1,17 +1,21 @@
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { basename, extname, resolve } from 'path';
+import { basename, resolve } from 'path';
 import { createS3Client, getBucketName } from './r2client.js';
 import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
 import { createProgressDisplay } from './progress.js';
 import { makeThumbnail, makeWebSized } from './derivatives.js';
-import { uploadToR2, SUPPORTED_EXTENSIONS } from './upload.js';
+import { uploadToR2 } from './upload.js';
 import { thumbnailKey, webKey } from './keys.js';
 import { createPendingQueue } from './pendingOriginals.js';
+import { listAlbumKeys } from './r2list.js';
+import {
+  expandPaths,
+  partitionCandidates,
+  needsUpload,
+  assertNoKeyCollisions,
+} from './candidates.js';
 
 // ── constants ─────────────────────────────────────────────────────────────────
-
-const UNDECODABLE_EXTENSIONS = new Set(['.heic', '.heif']);
 
 const DEFAULT_CONCURRENCY = 6;
 
@@ -26,22 +30,6 @@ export const parseArgs = (args) => {
 
   const [folder, ...paths] = rest;
   return { folder, paths, concurrency: concurrency ?? DEFAULT_CONCURRENCY, force };
-};
-
-export const validateFiles = (files) => {
-  const errors = files.flatMap((file) => {
-    const ext = extname(file).toLowerCase();
-
-    if (UNDECODABLE_EXTENSIONS.has(ext)) {
-      return [`${file} cannot be resized locally (${ext} decoding is unavailable). ` +
-              `Convert it to JPEG first, e.g. \`sips -s format jpeg "${file}" --out "${file.replace(/\.[^.]+$/, '.jpg')}"\`.`];
-    }
-    if (!SUPPORTED_EXTENSIONS.has(ext)) return [`Unsupported file type: ${file} (${ext})`];
-    if (!existsSync(file)) return [`File not found: ${file}`];
-    return [];
-  });
-
-  if (errors.length > 0) throw new Error(errors.join('\n'));
 };
 
 // ── upload ────────────────────────────────────────────────────────────────────
@@ -89,21 +77,62 @@ const uploadPhoto = async (client, bucketName, item, hooks) => {
   await send('web', webKey(item.key), web);
 };
 
+// ── selection ─────────────────────────────────────────────────────────────────
+
+// Which candidates R2 does not already have. `--force` skips the listing
+// entirely rather than listing and ignoring the result — the filter is the
+// listing's only consumer.
+const selectPending = async (client, bucketName, folder, candidates, force) => {
+  if (force) {
+    console.log(`--force: uploading all ${candidates.length} photo(s)`);
+    return candidates;
+  }
+
+  const presentKeys = await listAlbumKeys(client, bucketName, folder);
+  const pending = candidates.filter(candidate => needsUpload(presentKeys, candidate.key));
+
+  console.log(`${candidates.length - pending.length} already uploaded — skipping.`);
+  return pending;
+};
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 const run = async () => {
-  const { folder, paths, concurrency } = parseArgs(process.argv.slice(2));
-  validateFiles(paths);
+  const { folder, paths, concurrency, force } = parseArgs(process.argv.slice(2));
+
+  const { files, skipped } = partitionCandidates(expandPaths(paths));
+  for (const note of skipped) console.warn(`Skipped: ${note}`);
+
+  const candidates = files.map(filePath => ({
+    filePath,
+    key: `${folder}/${basename(filePath)}`,
+  }));
+  // Before any network work: two files claiming one key would overwrite each
+  // other, and the second run would then call both of them already uploaded.
+  assertNoKeyCollisions(candidates);
+  console.log(`${candidates.length} photo(s) found.`);
+
+  if (candidates.length === 0) {
+    console.log('Nothing to upload.');
+    return;
+  }
 
   const client = createS3Client();
   const bucketName = getBucketName();
+
+  const pending = await selectPending(client, bucketName, folder, candidates, force);
+  if (pending.length === 0) {
+    console.log('Nothing to upload.');
+    return;
+  }
+
   const queue = createPendingQueue();
 
-  const items = paths.map(filePath => ({
-    id: filePath,
-    filePath,
-    name: basename(filePath),
-    key: `${folder}/${basename(filePath)}`,
+  const items = pending.map(candidate => ({
+    id: candidate.filePath,
+    filePath: candidate.filePath,
+    name: basename(candidate.filePath),
+    key: candidate.key,
     // Byte totals arrive after the resize — the original's size on disk is not
     // a quantity this script uploads any more.
     totalBytes: null,
