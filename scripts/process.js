@@ -1,5 +1,4 @@
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import exifr from 'exifr';
 import { createS3Client, getBucketName } from './r2client.js';
 import { listAllObjects } from './r2list.js';
 import { mapWithConcurrency, parseConcurrencyFlag } from './concurrency.js';
@@ -7,10 +6,11 @@ import { createProgressDisplay } from './progress.js';
 import { withRetry } from './retry.js';
 import { thumbnailKey, webKey, logicalPhotoKeys } from './keys.js';
 import { makeThumbnail, makeWebSized } from './derivatives.js';
+import { parseExif } from './exif.js';
+import { loadExifCache, saveExifCache } from './exifStore.js';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const EXIF_CACHE_KEY = 'exif-cache.json';
 const EXIF_FETCH_BYTES = 131072; // 128KB — enough for EXIF in any JPEG
 const EXIF_CONCURRENCY = 8;
 const IMAGE_CONCURRENCY = 4;
@@ -27,23 +27,6 @@ const downloadObject = async (client, bucketName, key) => {
 const uploadObject = (client, bucketName, key, body) =>
   client.send(new PutObjectCommand({ Bucket: bucketName, Key: key, Body: body, ContentType: 'image/jpeg' }));
 
-const loadJson = async (client, bucketName, key) => {
-  try {
-    const response = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
-    return JSON.parse(await response.Body.transformToString());
-  } catch {
-    return {};
-  }
-};
-
-const saveJson = (client, bucketName, key, data) =>
-  client.send(new PutObjectCommand({
-    Bucket: bucketName,
-    Key: key,
-    Body: JSON.stringify(data, null, 2),
-    ContentType: 'application/json',
-  }));
-
 // ── EXIF extraction ───────────────────────────────────────────────────────────
 
 const fetchExifChunk = async (publicUrl, key) => {
@@ -54,33 +37,9 @@ const fetchExifChunk = async (publicUrl, key) => {
   return Buffer.from(await response.arrayBuffer());
 };
 
-const parseExif = async (buffer) => {
-  try {
-    const data = await exifr.parse(buffer, {
-      pick: ['Make', 'Model', 'LensModel', 'Lens', 'LensID',
-             'FNumber', 'ExposureTime', 'ISO', 'FocalLength', 'DateTimeOriginal'],
-    });
-    if (!data) return {};
-
-    return {
-      camera: [data.Make, data.Model].filter(Boolean).join(' ').trim() || null,
-      lens: data.LensModel || data.Lens || data.LensID || null,
-      aperture: data.FNumber ? `f/${data.FNumber}` : null,
-      shutter: data.ExposureTime
-        ? (data.ExposureTime < 1 ? `1/${Math.round(1 / data.ExposureTime)}s` : `${data.ExposureTime}s`)
-        : null,
-      iso: data.ISO ? `ISO ${data.ISO}` : null,
-      focalLength: data.FocalLength ? `${Math.round(data.FocalLength)}mm` : null,
-      dateTaken: data.DateTimeOriginal ? new Date(data.DateTimeOriginal).toISOString() : null,
-    };
-  } catch {
-    return {};
-  }
-};
-
-const processExif = async (client, bucketName, photoKeys, publicUrl, force, concurrency, exifSourceKey) => {
+const processExif = async (photoKeys, publicUrl, force, concurrency, exifSourceKey) => {
   console.log('\n── EXIF extraction ──────────────────────────────────────────');
-  const cache = force ? {} : await loadJson(client, bucketName, EXIF_CACHE_KEY);
+  const cache = force ? {} : await loadExifCache();
   const toProcess = photoKeys.filter(key => cache[key] === undefined);
 
   if (force) console.log(`--force: reprocessing all ${photoKeys.length} photos`);
@@ -91,12 +50,12 @@ const processExif = async (client, bucketName, photoKeys, publicUrl, force, conc
     return;
   }
 
-  // saveJson serializes the whole cache object, so two overlapping saves can
-  // land out of order and drop entries. Chain them so only one is ever in flight.
+  // saveExifCache serializes the whole cache object, so two overlapping saves
+  // can land out of order and drop entries. Chain them so only one is ever in
+  // flight.
   let pendingSave = Promise.resolve();
   const queueSave = () => {
-    pendingSave = pendingSave.then(() =>
-      withRetry(() => saveJson(client, bucketName, EXIF_CACHE_KEY, cache)));
+    pendingSave = pendingSave.then(() => withRetry(() => saveExifCache(cache)));
   };
 
   const items = toProcess.map(key => ({ id: key, name: key, totalBytes: null }));
@@ -131,7 +90,7 @@ const processExif = async (client, bucketName, photoKeys, publicUrl, force, conc
   } finally {
     display.stop();
     await pendingSave;
-    await withRetry(() => saveJson(client, bucketName, EXIF_CACHE_KEY, cache));
+    await withRetry(() => saveExifCache(cache));
   }
 
   const failures = results.filter(result => result.error);
@@ -257,7 +216,7 @@ const run = async () => {
   const exifSourceKey = (key) => (presentKeys.has(key) ? key : webKey(key));
 
   await processExif(
-    client, bucketName, photoKeys, publicUrl, force,
+    photoKeys, publicUrl, force,
     concurrency ?? EXIF_CONCURRENCY, exifSourceKey,
   );
   await processImages(client, bucketName, photoKeys, objects, concurrency ?? IMAGE_CONCURRENCY);
