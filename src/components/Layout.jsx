@@ -14,7 +14,8 @@ const Layout = () => (
       <a href="https://joneisen.me" className="blog-link">← joneisen.me</a>
     </header>
     <nav className="album-nav">
-      <NavTab to="/" end>All</NavTab>
+      <NavTab to="/" end>Home</NavTab>
+      <NavTab to="/albums">Albums</NavTab>
       <NavTab to="/favorites">Favorites</NavTab>
       <NavTab to="/camera">Camera</NavTab>
     </nav>

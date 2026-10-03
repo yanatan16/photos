@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import AlbumGrid from './components/AlbumGrid';
+import Home from './components/Home';
 import CameraGrid from './components/CameraGrid';
 import CameraPhotos from './components/CameraPhotos';
 import PhotoGallery from './components/PhotoGallery';
@@ -15,7 +16,8 @@ const App = () => (
     <div className="app">
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<AlbumGrid albums={albums} />} />
+          <Route path="/" element={<Home albums={albums} favorites={favorites} />} />
+          <Route path="/albums" element={<AlbumGrid albums={albums} />} />
           <Route path="/favorites" element={<FavoritesGallery favorites={favorites} />} />
           <Route path="/camera" element={<CameraGrid albums={albums} />} />
           <Route path="/camera/:cameraSlug" element={<CameraPhotos albums={albums} />} />
