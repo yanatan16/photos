@@ -236,3 +236,30 @@
     gap: 1rem;
   }
 }
+
+.home-section {
+  margin-bottom: 3rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.section-link {
+  font-size: 0.9rem;
+  color: #888;
+  text-decoration: none;
+}
+
+.section-link:hover {
+  color: #fff;
+}
