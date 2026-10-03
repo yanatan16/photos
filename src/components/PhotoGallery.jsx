@@ -10,7 +10,7 @@ const PhotoGallery = ({ albums }) => {
     return (
       <div className="photo-gallery-container">
         <div className="error-message">Album not found</div>
-        <Link to="/" className="back-button">← Back to Albums</Link>
+        <Link to="/albums" className="back-button">← Back to Albums</Link>
       </div>
     );
   }
@@ -18,7 +18,7 @@ const PhotoGallery = ({ albums }) => {
   return (
     <div className="photo-gallery-container">
       <header className="gallery-header">
-        <Link to="/" className="back-button">← Back to Albums</Link>
+        <Link to="/albums" className="back-button">← Back to Albums</Link>
         <h1 className="gallery-title">{album.name}</h1>
         <p className="gallery-count">{album.photos.length} photos</p>
       </header>

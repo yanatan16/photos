@@ -39,7 +39,9 @@ Two-phase build pipeline:
 1. **`scripts/fetch-photos.js`** — Node script (AWS SDK S3 client) lists all objects in Cloudflare R2, groups them by top-level folder into albums, and writes `src/data/photos.json`. Root-level files and hidden files are ignored. Album names are derived from folder slugs (`vacation-2024` → `Vacation 2024`).
 
 2. **Vite + React app** — Imports `photos.json` at build time (static import, not a runtime fetch). Routes:
-   - `/` → `AlbumGrid` — grid of album covers
+   - `/` → `Home` — latest 8 favorites + 4 newest albums, each with a link to the full list
+   - `/albums` → `AlbumGrid` — grid of album covers
+   - `/favorites` → `FavoritesGallery` — gallery of favorite photos
    - `/album/:albumId` → `PhotoGallery` — photo grid with `PhotoViewer` lightbox overlay
 
 `PhotoViewer` handles keyboard navigation (arrow keys, escape) and is rendered inside `PhotoGallery` when a photo is selected (controlled by index state).
