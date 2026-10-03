@@ -1,4 +1,5 @@
 import './LicenseNotice.css';
+import { LICENSE_NAME, LICENSE_URL } from '../license';
 
 const INSTAGRAM_HANDLE = '@mildly_athletic';
 const INSTAGRAM_URL = 'https://www.instagram.com/mildly_athletic/';
@@ -14,9 +15,13 @@ const LicenseNotice = ({ onContinue, onCancel }) => (
   >
     <div className="license-modal">
       <h2 id="license-title">Before you download</h2>
+      <p>
+        These photos are licensed under{' '}
+        <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer">{LICENSE_NAME}</a>:
+      </p>
       <ul>
-        <li>Free for <strong>personal use</strong>.</li>
-        <li>No modification and no commercial use. For a commercial license,{' '}
+        <li>Free for <strong>personal use</strong>, with credit.</li>
+        <li>No modifications (ND) and no commercial use (NC). For a commercial license,{' '}
           <a href={`mailto:${LICENSE_EMAIL}`}>email me</a>.</li>
         <li>If you share it on social media, please credit me:{' '}
           <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">{INSTAGRAM_HANDLE}</a>.</li>

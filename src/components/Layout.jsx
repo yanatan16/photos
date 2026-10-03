@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import './AlbumGrid.css';
+import { LICENSE_NAME, LICENSE_URL } from '../license';
 
 const NavTab = ({ to, end, children }) => (
   <NavLink to={to} end={end} className={({ isActive }) => `nav-tab${isActive ? ' active' : ''}`}>
@@ -20,8 +21,8 @@ const Layout = () => (
     </nav>
     <Outlet />
     <footer className="site-footer">
-      <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener noreferrer">
-        CC BY-NC-ND 4.0
+      <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer">
+        {LICENSE_NAME}
       </a>
       {' '}© {new Date().getFullYear()} Jon Eisen
     </footer>

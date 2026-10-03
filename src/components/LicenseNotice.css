@@ -24,6 +24,10 @@
   font-size: 1.15rem;
 }
 
+.license-modal p {
+  margin: 0 0 0.5rem;
+}
+
 .license-modal ul {
   margin: 0 0 1.25rem;
   padding-left: 1.25rem;
