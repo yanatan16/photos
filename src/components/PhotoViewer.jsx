@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import './PhotoViewer.css';
+import LicenseNotice from './LicenseNotice';
+import { wasShownToday, markShownToday } from '../utils/licenseNotice';
 import { useFavorites, useCovers, useDeletions } from '../context/DevToolsContext';
 
 const EXIF_FIELDS = [
@@ -96,6 +98,13 @@ const TrashIcon = () => (
   </svg>
 );
 
+const startDownload = ({ url, filename }) => {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+};
+
 const ExifStrip = ({ photo }) => {
   const fields = EXIF_FIELDS.filter(f => photo[f.key]);
   if (fields.length === 0) return null;
@@ -115,6 +124,8 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   const { isCover, setCover, pending: coverPending } = useCovers();
   const { deletePhoto, pending: deletePending } = useDeletions();
 
+  const [noticeOpen, setNoticeOpen] = useState(false);
+
   const currentPhoto = photos[currentIndex];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === photos.length - 1;
@@ -132,6 +143,10 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
   };
 
   const handleKeyDown = (e) => {
+    if (noticeOpen) {
+      if (e.key === 'Escape') setNoticeOpen(false);
+      return;
+    }
     if (e.key === 'Escape') {
       onClose();
     } else if (e.key === 'ArrowLeft') {
@@ -156,6 +171,18 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
     if (!ok) return;
     if (isLast) onClose();
     deletePhoto(currentPhoto.url);
+  };
+
+  const handleDownloadClick = (e) => {
+    if (wasShownToday(window.localStorage)) return;
+    e.preventDefault();
+    setNoticeOpen(true);
+  };
+
+  const continueDownload = () => {
+    markShownToday(window.localStorage);
+    setNoticeOpen(false);
+    startDownload(currentPhoto);
   };
 
   const handleBackdropClick = (e) => {
@@ -194,6 +221,7 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
             <a
               href={currentPhoto.url}
               download={currentPhoto.filename}
+              onClick={handleDownloadClick}
               className="viewer-download"
               aria-label="Download original"
             >
@@ -240,6 +268,10 @@ const PhotoViewer = ({ photos, currentIndex, onClose, onNavigate }) => {
           <ChevronIcon direction="right" />
         </button>
       </div>
+
+      {noticeOpen && (
+        <LicenseNotice onContinue={continueDownload} onCancel={() => setNoticeOpen(false)} />
+      )}
     </div>
   );
 };
