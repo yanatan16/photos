@@ -15,6 +15,7 @@
     "r2": "node scripts/r2.js",
     "upload": "node scripts/upload-photos.js",
     "upload:originals": "node scripts/upload-originals.js",
+    "publish": "node scripts/publish.js",
     "build:site": "vite build",
     "build": "npm run build:photos && npm run build:site",
     "preview": "vite preview",

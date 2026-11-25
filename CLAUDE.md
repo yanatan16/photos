@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev              # Start local dev server (Vite)
 npm run upload           # <album> <paths...> — files or folders; skips photos already in R2
 npm run upload:originals # Drain queued full-size originals (run on fast wifi)
+npm run publish          # Trigger the GitHub Pages deploy workflow (needs `gh`)
 npm run process          # Backfill derivatives/EXIF for photos already in R2
 npm run build:photos     # Fetch photo metadata from R2 → src/data/photos.json
 npm run build:site       # Compile React app with Vite → dist/
@@ -29,6 +30,10 @@ npm run upload -- --force album ~/Export   # right
 `--deploy` (trigger the Pages workflow when the upload finishes). `--deploy` is
 skipped if any photo failed, but still fires when everything was already
 uploaded — so a forgotten deploy can be re-run without `--force`.
+
+`npm run publish` triggers the same workflow on its own, e.g. after `favorite`,
+`set-cover`, or `r2 mv`. Note it is `npm run publish`: bare `npm publish` is
+npm's registry command, not this script.
 
 Local dev requires `.env` with R2 credentials (see `.env.example`). Run `build:photos` first to generate `src/data/photos.json` before starting dev server.
 
