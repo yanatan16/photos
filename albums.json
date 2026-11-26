@@ -1,0 +1,160 @@
+{
+  "albums": [
+    {
+      "id": "nuvania",
+      "name": "Nuvania",
+      "count": 11,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/nuvania/.thumbnails/DSCF0523.jpg"
+    },
+    {
+      "id": "fall-2026",
+      "name": "Fall 2026",
+      "count": 12,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/fall-2026/.thumbnails/DSCF4284.jpg"
+    },
+    {
+      "id": "sawatch-ascent-2026",
+      "name": "Sawatch Ascent 2026",
+      "count": 8,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/sawatch-ascent-2026/.thumbnails/DSCF0501.jpg"
+    },
+    {
+      "id": "high-lonesome-loop",
+      "name": "High Lonesome Loop",
+      "count": 25,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/high-lonesome-loop/.thumbnails/DSCF4278.jpg"
+    },
+    {
+      "id": "ute-100-2026",
+      "name": "Ute 100 2026",
+      "count": 58,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/ute-100-2026/.thumbnails/DSCF0307.jpg"
+    },
+    {
+      "id": "hardrock-100-2026",
+      "name": "Hardrock 100 2026",
+      "count": 37,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/hardrock-100-2026/.thumbnails/DSCF0034.jpg"
+    },
+    {
+      "id": "maryland-trip-2026",
+      "name": "Maryland Trip 2026",
+      "count": 18,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/maryland-trip-2026/.thumbnails/DSCF3917.jpg"
+    },
+    {
+      "id": "summer-2026",
+      "name": "Summer 2026",
+      "count": 39,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/summer-2026/.thumbnails/DSCF3769.jpg"
+    },
+    {
+      "id": "dash-n-dine-2026-week-3",
+      "name": "Dash N Dine 2026 Week 3",
+      "count": 45,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/dash-n-dine-2026-week-3/.thumbnails/DSCF3528.jpg"
+    },
+    {
+      "id": "quad-rock-towers-aid-station-2026",
+      "name": "Quad Rock Towers Aid Station 2026",
+      "count": 16,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/quad-rock-towers-aid-station-2026/.thumbnails/L1000163.jpg"
+    },
+    {
+      "id": "san-diego-april-2026",
+      "name": "San Diego April 2026",
+      "count": 2,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/san-diego-april-2026/.thumbnails/DSCF3372.jpg"
+    },
+    {
+      "id": "badwater-salton-sea-2026",
+      "name": "Badwater Salton Sea 2026",
+      "count": 93,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/badwater-salton-sea-2026/.thumbnails/DSCF3098.jpg"
+    },
+    {
+      "id": "2026-boulder-winter",
+      "name": "Boulder Winter",
+      "count": 24,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2026-boulder-winter/.thumbnails/L1000098.jpg"
+    },
+    {
+      "id": "2026-valle-de-guadelupe",
+      "name": "Valle De Guadelupe",
+      "count": 53,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2026-valle-de-guadelupe/.thumbnails/DSCF2630.jpg"
+    },
+    {
+      "id": "2026-san-diego",
+      "name": "San Diego",
+      "count": 14,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2026-san-diego/.thumbnails/DSCF2550.jpg"
+    },
+    {
+      "id": "2026-avalon",
+      "name": "Avalon",
+      "count": 22,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2026-avalon/.thumbnails/DSCF2533.jpg"
+    },
+    {
+      "id": "2025-cali-trip",
+      "name": "Cali Trip",
+      "count": 19,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-cali-trip/.thumbnails/DSCF2361.jpg"
+    },
+    {
+      "id": "2025-brads-birthday",
+      "name": "Brads Birthday",
+      "count": 60,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-brads-birthday/.thumbnails/DSCF2160.jpg"
+    },
+    {
+      "id": "2025-sawatch-50ks",
+      "name": "Sawatch 50ks",
+      "count": 14,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-sawatch-50ks/.thumbnails/DSCF1994.jpg"
+    },
+    {
+      "id": "2025-fall",
+      "name": "Fall",
+      "count": 31,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-fall/.thumbnails/DSCF1933.jpg"
+    },
+    {
+      "id": "2025-dash-n-dine",
+      "name": "Dash N Dine",
+      "count": 13,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-dash-n-dine/.thumbnails/DSCF1306.jpg"
+    },
+    {
+      "id": "2025-spring-summer",
+      "name": "Spring Summer",
+      "count": 16,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-spring-summer/.thumbnails/DSCF1517-2.jpg"
+    },
+    {
+      "id": "2025-grancanaria",
+      "name": "Grancanaria",
+      "count": 44,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-grancanaria/.thumbnails/DSCF1103.jpg"
+    },
+    {
+      "id": "2025-end-of-football-5k",
+      "name": "End Of Football 5k",
+      "count": 55,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-end-of-football-5k/.thumbnails/DSCF0824.jpg"
+    },
+    {
+      "id": "2025-winter-boulder",
+      "name": "Winter Boulder",
+      "count": 34,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2025-winter-boulder/.thumbnails/DSCF1180-2.jpg"
+    },
+    {
+      "id": "2024-misc",
+      "name": "Misc",
+      "count": 121,
+      "cover": "https://pub-171f4a6325e547438603dbaf07272b94.r2.dev/2024-misc/.thumbnails/DSCF0448.jpg"
+    }
+  ]
+}
